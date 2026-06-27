@@ -110,6 +110,10 @@ export async function getOptionsLocal(): Promise<OptionsLocalState> {
     schemaVersion:
       typeof partial.schemaVersion === 'number' ? partial.schemaVersion : defaults.schemaVersion,
     customCss: typeof partial.customCss === 'string' ? partial.customCss : defaults.customCss,
+    dismissedUpdateVersion:
+      typeof partial.dismissedUpdateVersion === 'string'
+        ? partial.dismissedUpdateVersion
+        : defaults.dismissedUpdateVersion,
   };
 }
 

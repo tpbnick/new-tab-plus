@@ -80,6 +80,8 @@ export interface OptionsState {
     folderCollapseAnimationMs: number;
     /** When true, folder and section columns cannot be dragged or rearranged. */
     lockColumns: boolean;
+    /** When true, check GitHub releases for extension updates. */
+    checkForUpdates: boolean;
   };
   topBar: {
     /** Left-to-right order of search and built-in widgets. Disabled widgets are skipped at render. */
@@ -146,6 +148,8 @@ export interface OptionsState {
 export interface OptionsLocalState {
   schemaVersion: number;
   customCss: string;
+  /** Latest release version the user dismissed from the update banner. */
+  dismissedUpdateVersion: string;
 }
 
 export function createDefaultLayoutState(): LayoutState {
@@ -198,6 +202,7 @@ export function createDefaultOptionsState(): OptionsState {
       expandCollapsedOnHover: false,
       folderCollapseAnimationMs: 250,
       lockColumns: false,
+      checkForUpdates: true,
     },
     topBar: {
       itemOrder: ['search', 'clock', 'weather'],
@@ -314,5 +319,6 @@ export function createDefaultOptionsLocalState(): OptionsLocalState {
   return {
     schemaVersion: SCHEMA_VERSION,
     customCss: '',
+    dismissedUpdateVersion: '',
   };
 }

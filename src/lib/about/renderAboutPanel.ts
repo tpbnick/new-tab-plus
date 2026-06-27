@@ -8,6 +8,8 @@ import {
   GITHUB_REPO_URL,
   LATEST_CHANGE,
 } from './appMeta.generated';
+import type { SettingsDeps } from '../settings/settingsPanels';
+import { createCheckboxInput as checkbox, createOptionsRow as row } from '../ui/formControls';
 
 function externalLink(href: string, label: string): HTMLAnchorElement {
   const link = document.createElement('a');
@@ -19,8 +21,8 @@ function externalLink(href: string, label: string): HTMLAnchorElement {
 }
 
 function aboutRow(label: string): { row: HTMLElement; value: HTMLElement } {
-  const row = document.createElement('p');
-  row.className = 'about-panel__row';
+  const rowEl = document.createElement('p');
+  rowEl.className = 'about-panel__row';
 
   const labelEl = document.createElement('span');
   labelEl.className = 'about-panel__label';
@@ -29,8 +31,8 @@ function aboutRow(label: string): { row: HTMLElement; value: HTMLElement } {
   const value = document.createElement('span');
   value.className = 'about-panel__value';
 
-  row.append(labelEl, value);
-  return { row, value };
+  rowEl.append(labelEl, value);
+  return { row: rowEl, value };
 }
 
 function formatChangeDate(date: string): string {
@@ -40,7 +42,10 @@ function formatChangeDate(date: string): string {
   return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function renderAboutPanel(container: HTMLElement): void {
+export function renderAboutPanel(
+  container: HTMLElement,
+  deps: Pick<SettingsDeps, 'options' | 'saveOptionsNow' | 'onCheckForUpdatesChange'>
+): void {
   const panel = document.createElement('div');
   panel.className = 'about-panel';
 
@@ -77,6 +82,16 @@ export function renderAboutPanel(container: HTMLElement): void {
   const support = aboutRow('Support');
   support.value.appendChild(externalLink(GITHUB_ISSUES_URL, 'Report an issue'));
 
+  const updatesSetting = row(
+    'Check for updates',
+    checkbox(deps.options.general.checkForUpdates, (enabled) => {
+      deps.options.general.checkForUpdates = enabled;
+      deps.saveOptionsNow();
+      deps.onCheckForUpdatesChange?.(enabled);
+    })
+  );
+  updatesSetting.classList.add('about-panel__updates-setting');
+
   const credit = document.createElement('p');
   credit.className = 'about-panel__credit';
   credit.append('Built with ', document.createTextNode('♥'), ' by ');
@@ -91,6 +106,7 @@ export function renderAboutPanel(container: HTMLElement): void {
     latest.row,
     license.row,
     support.row,
+    updatesSetting,
     credit
   );
   container.appendChild(panel);

@@ -88,6 +88,7 @@ export interface SettingsDeps {
   setLayoutDirect(layout: LayoutState): void;
   setOptionsDirect(options: OptionsState): void;
   setOptionsLocalDirect(optionsLocal: OptionsLocalState): void;
+  onCheckForUpdatesChange?(enabled: boolean): void;
 }
 
 export function renderSettingsPanel(name: SettingsSectionName, container: HTMLElement, deps: SettingsDeps): void {
@@ -105,7 +106,7 @@ export function renderSettingsPanel(name: SettingsSectionName, container: HTMLEl
       renderAdvancedPanel(container, deps);
       break;
     case 'About':
-      renderAboutPanel(container);
+      renderAboutPanel(container, deps);
       break;
   }
 }
@@ -1076,6 +1077,10 @@ function parseSettingsBackupJson(
           schemaVersion: optionsLocalPartial.schemaVersion ?? SCHEMA_VERSION,
           customCss:
             typeof optionsLocalPartial.customCss === 'string' ? optionsLocalPartial.customCss : '',
+          dismissedUpdateVersion:
+            typeof optionsLocalPartial.dismissedUpdateVersion === 'string'
+              ? optionsLocalPartial.dismissedUpdateVersion
+              : '',
         },
       },
     };
