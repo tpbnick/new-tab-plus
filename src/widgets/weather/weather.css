@@ -1,0 +1,35 @@
+.weather-compact {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.weather-compact__current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weather-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+.weather-compact__temp {
+  font-size: 1.15em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-compact__range {
+  font-size: 0.78em;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.weather-compact--loading {
+  opacity: 0.55;
+}

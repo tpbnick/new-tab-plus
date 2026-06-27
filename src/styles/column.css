@@ -1,0 +1,351 @@
+.column {
+  width: var(--ntp-column-width, 220px);
+  padding: 2px 4px;
+}
+
+.column.drag-over-before {
+  box-shadow: -3px 0 0 0 var(--ntp-color-highlight, #6fa8dc);
+}
+
+.column.drag-over-after {
+  box-shadow: 3px 0 0 0 var(--ntp-color-highlight, #6fa8dc);
+}
+
+.column.drag-over-into {
+  box-shadow: inset 0 0 0 2px var(--ntp-color-highlight, #6fa8dc);
+}
+
+.bookmark-item.drag-over-before {
+  box-shadow: none;
+}
+
+.bookmark-item.drag-over-after {
+  box-shadow: none;
+}
+
+.bookmark-drop-line {
+  position: fixed;
+  height: 2px;
+  background: var(--ntp-color-highlight, #6fa8dc);
+  pointer-events: none;
+  z-index: 2000;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 85%, transparent);
+}
+
+.column__title {
+  margin: 0 0 10px;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: var(--ntp-title-transform, uppercase);
+  color: var(--ntp-color-folder-header, var(--ntp-color-text-heading, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 88%, transparent)));
+}
+
+.column__title,
+.column__title *,
+.widget-inline,
+.widget-inline *,
+.widget-body,
+.widget-body * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.column__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.column__header .column__title {
+  flex: 1;
+}
+
+.widget-inline {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.widget-body,
+.widget-body * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.widget-empty-state,
+.widget-loading,
+.widget-error {
+  font-size: 0.9em;
+  opacity: 0.7;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.section-group__title {
+  margin: 6px 0 2px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--ntp-color-folder-header, var(--ntp-color-text-heading, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 88%, transparent)));
+}
+
+.bookmark-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bookmark-item {
+  margin: 1px 0;
+}
+
+.folder-column-block + .folder-column-block {
+  margin-top: 14px;
+}
+
+.folder-chevron {
+  display: inline-block;
+  width: 0.85em;
+  flex: 0 0 auto;
+}
+
+.folder-column-body,
+.folder-item-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--folder-collapse-duration, 250ms) ease;
+}
+
+.folder-column-body > *,
+.folder-item-body > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.folder-column-block.is-collapsed:not(.is-hover-expanded) .folder-column-body,
+.bookmark-item--folder.is-collapsed:not(.is-hover-expanded) .folder-item-body {
+  grid-template-rows: 0fr;
+}
+
+.folder-column-header,
+.folder-column-header *,
+.folder-toggle,
+.folder-toggle *,
+.folder-toggle--static,
+.folder-toggle--static * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.folder-column-header {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: var(--ntp-title-transform, uppercase);
+  text-align: left;
+  color: var(--ntp-color-folder-header, var(--ntp-color-text-heading, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 88%, transparent)));
+  cursor: grab;
+}
+
+.folder-column-header:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: 0.25em;
+}
+
+.folder-column-header:active {
+  cursor: grabbing;
+}
+
+.is-columns-locked .folder-column-header {
+  cursor: pointer;
+}
+
+.is-columns-locked .folder-column-header:active {
+  cursor: pointer;
+}
+
+.is-columns-locked .column__title {
+  cursor: default;
+}
+
+.folder-column-header--dragging {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.bookmark-item--link {
+  cursor: default;
+}
+
+body.is-folder-dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+body.is-folder-dragging .folder-column-header {
+  cursor: grabbing;
+}
+
+.bookmark-item--folder > .bookmark-list {
+  margin-left: 14px;
+  border-left: 1px solid var(--ntp-color-shadow, rgba(255, 255, 255, 0.1));
+  padding-left: 8px;
+  min-height: 6px;
+}
+
+.folder-toggle,
+.folder-toggle--static {
+  color: var(--ntp-color-folder-header, inherit);
+}
+
+.folder-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.bookmark-item--folder.drag-over-into > .folder-toggle {
+  color: var(--ntp-color-highlight, #6fa8dc);
+  background: color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 18%, transparent);
+  border-radius: 4px;
+}
+
+.bookmark-item--folder.drag-over-into > .bookmark-list {
+  border-left-color: var(--ntp-color-highlight, #6fa8dc);
+}
+
+.folder-toggle:hover {
+  color: var(--ntp-color-highlight, #6fa8dc);
+}
+
+.bookmark-item--link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bookmark-link {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ntp-color-text, #e8e8f0);
+  transition:
+    color var(--ntp-link-hover-duration, 200ms) ease,
+    transform var(--ntp-link-hover-duration, 200ms) ease,
+    filter var(--ntp-link-hover-duration, 200ms) ease,
+    text-shadow var(--ntp-link-hover-duration, 200ms) ease,
+    text-decoration-color var(--ntp-link-hover-duration, 200ms) ease;
+}
+
+.bookmark-link--error {
+  color: #e57373;
+  cursor: not-allowed;
+}
+
+.bookmark-favicon {
+  flex: 0 0 auto;
+  border-radius: 2px;
+  transition: transform var(--ntp-link-hover-duration, 200ms) ease;
+}
+
+/* Grow scales link + favicon; text expands into the column gap (not clipped). */
+html[data-link-hover-effect='grow'] .bookmarks-grid .column {
+  overflow: visible;
+}
+
+html[data-link-hover-effect='grow'] .folder-column-body > .bookmark-list,
+html[data-link-hover-effect='grow'] .folder-item-body > .bookmark-list {
+  overflow-x: visible;
+}
+
+html[data-link-hover-effect='grow'] .bookmark-item--link {
+  overflow: visible;
+}
+
+html[data-link-hover-effect='grow'] .bookmark-item--link:hover {
+  position: relative;
+  z-index: 2;
+}
+
+html[data-link-hover-effect='grow'] .bookmark-item--link:hover .bookmark-link {
+  overflow: visible;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: calc(
+    (100% - 24px + var(--ntp-bookmarks-grid-gap, 30px)) / var(--ntp-link-hover-scale, 1.05)
+  );
+  transform: scale(var(--ntp-link-hover-scale, 1.05));
+  transform-origin: left center;
+}
+
+html[data-link-hover-effect='grow'] .bookmark-item--link:hover .bookmark-link__label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html[data-link-hover-effect='grow'] .bookmark-item--link:hover .bookmark-favicon {
+  transform: scale(var(--ntp-link-hover-scale, 1.05));
+  transform-origin: left center;
+}
+
+html:not([data-link-hover-effect]) .bookmark-link:hover,
+html[data-link-hover-effect='color'] .bookmark-link:hover,
+html[data-link-hover-effect='grow'] .bookmark-link:hover,
+html[data-link-hover-effect='lift'] .bookmark-link:hover,
+html[data-link-hover-effect='glow'] .bookmark-link:hover,
+html[data-link-hover-effect='underline'] .bookmark-link:hover,
+html[data-link-hover-effect='brighten'] .bookmark-link:hover {
+  color: var(--ntp-color-highlight, #6fa8dc);
+}
+
+html[data-link-hover-effect='lift'] .bookmark-link:hover {
+  transform: translateY(-2px);
+  text-shadow: 0 3px 10px color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 35%, transparent);
+}
+
+html[data-link-hover-effect='glow'] .bookmark-link:hover {
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 45%, transparent),
+    0 0 16px color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 25%, transparent);
+}
+
+html[data-link-hover-effect='underline'] .bookmark-link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--ntp-color-highlight, #6fa8dc);
+  text-underline-offset: 0.18em;
+}
+
+html[data-link-hover-effect='brighten'] .bookmark-link:hover {
+  filter: brightness(1.22);
+}
+
+.bookmark-link__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-column-body,
+  .folder-item-body {
+    transition: none;
+  }
+}

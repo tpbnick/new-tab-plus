@@ -1,0 +1,25 @@
+:root {
+  --ntp-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ntp-font-weight: 400;
+  --ntp-font-size: 14px;
+
+  --ntp-color-text: #e8e8f0;
+  --ntp-color-text-muted: color-mix(in srgb, #e8e8f0 82%, transparent);
+  --ntp-color-text-heading: color-mix(in srgb, #e8e8f0 88%, transparent);
+  --ntp-color-background: #15161e;
+  --ntp-color-highlight: #6fa8dc;
+  --ntp-color-shadow: rgba(255, 255, 255, 0.12);
+
+  --ntp-spacing-unit: 12px;
+  --ntp-column-width: 220px;
+  --ntp-title-transform: uppercase;
+  --ntp-top-spacing: 40px;
+  --ntp-region-gap: 36px;
+
+  --ntp-top-bar-max-width: 720px;
+  --ntp-top-bar-gap: 20px;
+  --ntp-search-max-width: 1000px;
+  --ntp-top-bar-widget-height: 36px;
+  --ntp-top-bar-widget-scale: 1;
+  --folder-collapse-duration: 250ms;
+}
