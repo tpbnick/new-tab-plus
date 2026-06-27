@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="New Tab Plus — a bookmarks-driven, widget-extensible new tab page for Chrome."
+    />
+    <title>New Tab Plus</title>
+    <link rel="icon" href="icons/icon-128.png" type="image/png" />
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      (function () {
+        var key = 'ntp-docs-theme';
+        var theme = localStorage.getItem(key);
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top">
+        <img src="icons/icon-128.png" alt="" width="32" height="32" />
+        <span>New Tab Plus</span>
+      </a>
+      <div class="site-header__end">
+        <nav class="site-nav" aria-label="Page sections">
+          <a href="#guide">User guide</a>
+          <a href="#privacy">Privacy</a>
+          <a href="https://github.com/tpbnick/new-tab-plus">GitHub</a>
+        </nav>
+        <button
+          type="button"
+          class="theme-toggle"
+          id="theme-toggle"
+          aria-label="Switch to light mode"
+        >
+          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+            </svg>
+          </span>
+          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z" />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="hero">
+        <img src="icons/icon-128.png" alt="New Tab Plus icon" width="96" height="96" />
+        <h1>New Tab Plus</h1>
+        <p>A bookmarks-driven, widget-extensible new tab page for Chrome.</p>
+        <div class="hero-actions">
+          <a
+            class="button button--primary"
+            href="https://github.com/tpbnick/new-tab-plus/releases/latest"
+            >Download latest release</a
+          >
+          <a class="button" href="https://github.com/tpbnick/new-tab-plus">View on GitHub</a>
+        </div>
+      </div>
+
+      <section id="guide" aria-labelledby="guide-heading">
+        <h2 id="guide-heading">User guide</h2>
+
+        <h3>Install</h3>
+        <ol>
+          <li>
+            Download <strong>new-tab-plus-v*.zip</strong> from the
+            <a href="https://github.com/tpbnick/new-tab-plus/releases/latest">latest release</a>.
+          </li>
+          <li>Unzip the file.</li>
+          <li>Open <code>chrome://extensions</code>, enable <strong>Developer mode</strong>, and choose
+            <strong>Load unpacked</strong>.</li>
+          <li>Select the unzipped folder (it should contain <code>manifest.json</code>).</li>
+        </ol>
+
+        <h3>Getting started</h3>
+        <p>
+          Open a new tab to see your bookmark columns, optional widgets, and special sections. Open
+          <strong>Settings</strong> from the gear icon in the page header.
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <strong>Bookmarks</strong>
+            <p>
+              Your Chrome bookmarks appear as draggable columns. Add folders, stack columns, and
+              rearrange the layout. Settings let you lock columns, remember open folders, and control
+              link behavior.
+            </p>
+          </div>
+          <div class="card">
+            <strong>Widgets</strong>
+            <p>
+              Enable the search bar, clock, and weather widgets from <strong>Settings → Widgets</strong>.
+              Weather needs a location configured in the widget settings and fetches forecast data from
+              Open-Meteo when enabled.
+            </p>
+          </div>
+          <div class="card">
+            <strong>Special sections</strong>
+            <p>
+              Add columns for Most Visited, Recently Closed, Apps, or tabs open on Other Devices.
+              Each section can be toggled and configured from bookmark settings.
+            </p>
+          </div>
+          <div class="card">
+            <strong>Appearance</strong>
+            <p>
+              Pick a theme preset or customize colors, fonts, spacing, and link hover effects.
+              Advanced settings include custom CSS and layout import/export.
+            </p>
+          </div>
+        </div>
+
+        <h3>Keyboard shortcuts</h3>
+        <ul>
+          <li>
+            Start typing — open the command palette to search bookmarks or the web
+          </li>
+          <li>
+            <kbd>↑</kbd> <kbd>↓</kbd> — move selection in the command palette
+          </li>
+          <li><kbd>Enter</kbd> — open the selected result</li>
+          <li><kbd>Esc</kbd> — close Settings or the command palette</li>
+        </ul>
+
+        <h3>Backup &amp; sync</h3>
+        <p>
+          Layout and most options sync through Chrome sync when signed in. Use
+          <strong>Settings → Advanced</strong> to export or import your layout and options as JSON.
+        </p>
+
+        <h3>Help &amp; feedback</h3>
+        <p>
+          Report bugs or request features on
+          <a href="https://github.com/tpbnick/new-tab-plus/issues">GitHub Issues</a>.
+        </p>
+      </section>
+
+      <section id="privacy" aria-labelledby="privacy-heading">
+        <h2 id="privacy-heading">Privacy policy</h2>
+        <p class="privacy-meta">Last updated: June 26, 2026</p>
+
+        <p>
+          This policy describes what the extension accesses and what leaves your browser.
+        </p>
+
+        <h3>Summary</h3>
+        <p>
+          New Tab Plus does not collect your personal data, and we never will. There is no
+          analytics, telemetry, or user accounts. Settings and layout are stored locally in Chrome
+          (<code>chrome.storage</code>) and may sync through your Google account if Chrome sync is
+          enabled.
+        </p>
+
+        <h3>Data stored on your device</h3>
+        <ul>
+          <li>Bookmark column layout and widget configuration</li>
+          <li>Theme, appearance, and general extension settings</li>
+          <li>Cached weather responses (when the weather widget is enabled)</li>
+        </ul>
+
+        <h3>Chrome permissions</h3>
+        <ul>
+          <li>
+            <strong>Bookmarks</strong> — read your bookmark tree to display and search bookmarks on
+            the new tab page
+          </li>
+          <li>
+            <strong>Top sites</strong> — show your most visited sites in the optional Most Visited
+            section
+          </li>
+          <li>
+            <strong>Sessions</strong> — show recently closed tabs and tabs from other signed-in
+            devices
+          </li>
+          <li><strong>Storage</strong> — save your settings and layout</li>
+          <li><strong>Favicon</strong> — display site icons next to links</li>
+          <li><strong>Search</strong> — run web searches using your browser&apos;s default search engine</li>
+        </ul>
+
+        <h3>Network requests</h3>
+        <p>The extension only makes network requests when a feature that needs them is enabled:</p>
+        <ul>
+          <li>
+            <strong>Open-Meteo</strong> (<a href="https://open-meteo.com/">open-meteo.com</a>) —
+            geocoding and weather data for the weather widget. Requests include the location name or
+            coordinates you configure; no account is required.
+          </li>
+          <li>
+            <strong>Google Fonts</strong> — web fonts when a theme preset or setting uses them
+          </li>
+          <li>
+            <strong>GitHub API</strong> — optional update checks when
+            <strong>Check for updates</strong> is enabled in Settings → About. Only public release
+            metadata is fetched; no personal data is sent.
+          </li>
+        </ul>
+
+        <h3>Third parties</h3>
+        <p>
+          When network features are used, those services receive the data needed to fulfill the
+          request (for example, a city name sent to Open-Meteo). Their privacy practices are governed
+          by their own policies.
+        </p>
+
+        <h3>Changes</h3>
+        <p>
+          This policy may be updated when the extension changes. The date at the top of this section
+          reflects the latest revision.
+        </p>
+
+        <h3>Contact</h3>
+        <p>
+          Questions or privacy concerns:
+          <a href="https://github.com/tpbnick/new-tab-plus/issues/new">open a GitHub issue</a>.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        <a href="https://github.com/tpbnick/new-tab-plus">GitHub</a>
+        ·
+        <a href="https://github.com/tpbnick/new-tab-plus/releases">Releases</a>
+        ·
+        <a href="https://github.com/tpbnick/new-tab-plus/blob/main/LICENSE">MIT License</a>
+        ·
+        <a href="https://nickplatt.dev">Nick Platt</a>
+      </p>
+      <p>Built with ♥ for a better new tab.</p>
+    </footer>
+    <script src="theme.js"></script>
+  </body>
+</html>

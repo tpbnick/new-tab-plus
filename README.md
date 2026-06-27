@@ -6,6 +6,8 @@
 
 A bookmarks-driven, widget-extensible new tab page for Chrome.
 
+**Website:** [User guide & privacy policy](https://tpbnick.github.io/new-tab-plus/)
+
 ## Install
 
 1. Download **`new-tab-plus-v*.zip`** from the [latest release](https://github.com/tpbnick/new-tab-plus/releases/latest).
