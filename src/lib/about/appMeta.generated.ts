@@ -2,6 +2,7 @@
 export const APP_VERSION = "1.1.0";
 export const APP_TAGLINE = "A bookmarks-driven, widget-extensible new tab page.";
 export const GITHUB_REPO_URL = "https://github.com/tpbnick/new-tab-plus";
+export const USER_GUIDE_URL = "https://tpbnick.github.io/new-tab-plus/";
 export const GITHUB_ISSUES_URL = "https://github.com/tpbnick/new-tab-plus/issues/new";
 export const GITHUB_LICENSE_URL = "https://github.com/tpbnick/new-tab-plus/blob/main/LICENSE";
 export const AUTHOR_NAME = 'Nick Platt';
