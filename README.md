@@ -30,10 +30,10 @@ npm run package # zip dist for release
 Weather data is fetched from [Open-Meteo](https://open-meteo.com/) when the weather widget is enabled (requires network access).
 
 ## Possible Upcoming Features
-- [] Calendar integration (Google, Apple)
-- [] Sports Livescores integration (Soccer, Basketball, Football, etc.)
-- [] Weather source options (Bring your own API key)
-- [] More theme/font options
+- Calendar integration (Google, Apple)
+- Sports Livescores integration (Soccer, Basketball, Football, etc.)
+- Weather source options (Bring your own API key)
+- More theme/font options
 
 ## License
 
