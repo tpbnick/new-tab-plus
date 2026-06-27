@@ -24,7 +24,7 @@ let commit = { ...placeholder };
 try {
   const shortSha = execSync('git rev-parse --short HEAD', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   const fullSha = execSync('git rev-parse HEAD', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  const logLine = execSync('git log -1 --format=%s|%cI', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const logLine = execSync("git log -1 '--format=%s|%cI'", { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   const separator = logLine.indexOf('|');
   const message = separator === -1 ? logLine : logLine.slice(0, separator);
   const date = separator === -1 ? '—' : logLine.slice(separator + 1, separator + 11);

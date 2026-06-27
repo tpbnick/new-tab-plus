@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,6 +12,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Read and validate version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PKG_VERSION=$(jq -r .version package.json)
+          MANIFEST_VERSION=$(jq -r .version manifest.json)
+
+          if [ -z "$PKG_VERSION" ] || [ "$PKG_VERSION" = "null" ]; then
+            echo "Could not read version from package.json"
+            exit 1
+          fi
+
+          if [ "$PKG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "package.json ($PKG_VERSION) and manifest.json ($MANIFEST_VERSION) versions must match."
+            exit 1
+          fi
+
+          TAG="v${PKG_VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Bump the version in package.json and manifest.json, push to main, then run this workflow again."
+            exit 1
+          fi
+
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG from commit ${GITHUB_SHA}"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -36,5 +62,7 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           files: new-tab-plus-v*.zip
           generate_release_notes: true
