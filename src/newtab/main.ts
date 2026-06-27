@@ -31,6 +31,7 @@ import { attachCollapsible, attachNonSelectableLabels } from '../lib/ui/collapsi
 import { resolveStackKeyboardMove, type StackMoveDirection } from '../lib/dnd/keyboardStackMove';
 import { LayoutPersistError } from '../lib/storage/layoutPersistError';
 import { showSaveError } from '../lib/ui/saveErrorBanner';
+import { hideUpdateBanner, initUpdateChecker, runUpdateCheck } from '../lib/updates/updateCheck';
 import { applyTopBar } from '../lib/topBar/topBarLayout';
 import { navigateExternalUrl } from '../lib/render/externalLink';
 import { renderSearchBar } from '../lib/search/searchBar';
@@ -1088,6 +1089,7 @@ function setOptionsLocalDirect(newOptionsLocal: OptionsLocalState): void {
     ...optionsLocalState,
     ...newOptionsLocal,
     customCss: newOptionsLocal.customCss,
+    dismissedUpdateVersion: newOptionsLocal.dismissedUpdateVersion,
   };
   applyCustomCss(optionsLocalState.customCss);
   void setOptionsLocal(optionsLocalState).catch((err) => {
@@ -1102,6 +1104,17 @@ async function resetBookmarkLayout(): Promise<void> {
   markLayoutDirty();
   await persistLayoutAndRender();
 }
+
+const updateCheckContext = {
+  getCheckEnabled: () => optionsState.general.checkForUpdates,
+  getDismissedVersion: () => optionsLocalState.dismissedUpdateVersion,
+  setDismissedVersion: async (version: string) => {
+    optionsLocalState = { ...optionsLocalState, dismissedUpdateVersion: version };
+    await setOptionsLocal(optionsLocalState);
+  },
+};
+
+initUpdateChecker(updateCheckContext);
 
 const settingsDeps: SettingsDeps = {
   get layout() {
@@ -1132,6 +1145,13 @@ const settingsDeps: SettingsDeps = {
     void resetBookmarkLayout();
   },
   flushPendingSaves,
+  onCheckForUpdatesChange: (enabled) => {
+    if (enabled) {
+      void runUpdateCheck(updateCheckContext, { force: true });
+      return;
+    }
+    hideUpdateBanner();
+  },
 };
 
 const settingsModal = createSettingsModal(settingsDeps);
@@ -1177,6 +1197,7 @@ void (async () => {
     applyLiveTheme();
     applyCustomCss(local.customCss);
     await render('full');
+    void runUpdateCheck(updateCheckContext);
   } catch (err) {
     console.error('[new-tab-plus] initial render failed', err);
     showRenderError('Something went wrong loading your new tab. Please try again.');

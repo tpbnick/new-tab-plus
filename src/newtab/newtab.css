@@ -386,3 +386,51 @@ body {
 .ntp-save-error-banner button:hover {
   background: color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 14%, transparent);
 }
+
+.ntp-update-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1050;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ntp-color-background, #15161e) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 42%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ntp-color-shadow, rgba(0, 0, 0, 0.35)) 65%, transparent);
+  color: var(--ntp-color-text, #e8e8f0);
+}
+
+.ntp-update-banner__message {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ntp-color-highlight, #6fa8dc);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ntp-update-banner__message:hover {
+  text-decoration: underline;
+}
+
+.ntp-update-banner__close {
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1em;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.ntp-update-banner__close:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 10%, transparent);
+}
