@@ -256,6 +256,16 @@ body {
   width: 100%;
 }
 
+.ntp-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ntp-region-gap, 36px);
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
 .settings-button {
   position: fixed;
   top: 16px;
@@ -277,14 +287,14 @@ body {
 }
 
 .bookmarks-grid {
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: flex-start;
   --ntp-bookmarks-grid-gap: calc(var(--ntp-spacing-unit, 12px) * 2.5);
   gap: var(--ntp-bookmarks-grid-gap);
-  max-width: none;
 }
 
 .bookmarks-grid:empty {

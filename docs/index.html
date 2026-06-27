@@ -90,6 +90,19 @@
           <strong>Settings</strong> from the gear icon in the page header.
         </p>
 
+        <figure class="screenshot">
+          <img
+            src="images/new-tab-plus-1.png"
+            alt="New Tab Plus new tab page with bookmark columns, search bar, clock, and weather widgets"
+            loading="lazy"
+            width="1280"
+            height="720"
+          />
+          <figcaption>
+            Bookmark columns with the search bar, clock, and weather widgets in the top bar.
+          </figcaption>
+        </figure>
+
         <div class="card-grid">
           <div class="card">
             <strong>Bookmarks</strong>
@@ -122,6 +135,81 @@
             </p>
           </div>
         </div>
+
+        <h3>Settings</h3>
+        <p>
+          Open settings from the gear icon in the top-right corner. Bookmarks, widgets, appearance,
+          and advanced options are grouped into sections you can switch between along the top.
+        </p>
+
+        <figure class="screenshot">
+          <img
+            src="images/new-tab-plus-settings.png"
+            alt="Settings panel open on the Bookmarks tab with behavior and section options"
+            loading="lazy"
+            width="1280"
+            height="720"
+          />
+          <figcaption>The settings panel slides in from the right without leaving the new tab page.</figcaption>
+        </figure>
+
+        <h3>Themes</h3>
+        <p>
+          Built-in presets change colors, fonts, and accents in one click. You can also fine-tune
+          everything under <strong>Settings → Appearance</strong>.
+        </p>
+
+        <div class="screenshot-grid">
+          <figure class="screenshot">
+            <img
+              src="images/new-tab-plus-1.png"
+              alt="New Tab Plus with the GitHub Dark theme"
+              loading="lazy"
+              width="1280"
+              height="720"
+            />
+            <figcaption>GitHub Dark</figcaption>
+          </figure>
+          <figure class="screenshot">
+            <img
+              src="images/new-tab-plus-2.png"
+              alt="New Tab Plus with the Monokai Dark theme"
+              loading="lazy"
+              width="1280"
+              height="720"
+            />
+            <figcaption>Monokai Dark</figcaption>
+          </figure>
+          <figure class="screenshot">
+            <img
+              src="images/new-tab-plus-3.png"
+              alt="New Tab Plus with the Hacker theme"
+              loading="lazy"
+              width="1280"
+              height="720"
+            />
+            <figcaption>Hacker</figcaption>
+          </figure>
+        </div>
+
+        <h3>Command palette</h3>
+        <p>
+          Start typing on the new tab page to open the command palette. Search your bookmarks or
+          run a web search, then use the arrow keys to pick a result.
+        </p>
+
+        <figure class="screenshot">
+          <img
+            src="images/new-tab-plus-command-palette.png"
+            alt="Command palette open with bookmark search results for the query stream"
+            loading="lazy"
+            width="1280"
+            height="720"
+          />
+          <figcaption>
+            Typing filters bookmarks instantly and offers a web search for the same query.
+          </figcaption>
+        </figure>
 
         <h3>Keyboard shortcuts</h3>
         <ul>
@@ -241,6 +329,41 @@
       </p>
       <p>Built with ♥ for a better new tab.</p>
     </footer>
+
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+      <div class="lightbox__backdrop" data-lightbox-close></div>
+      <div
+        class="lightbox__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lightbox-caption"
+      >
+        <button type="button" class="lightbox__close" data-lightbox-close aria-label="Close gallery">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+        <div class="lightbox__stage">
+          <button type="button" class="lightbox__nav lightbox__nav--prev" aria-label="Previous image">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M14 6l-6 6 6 6" />
+            </svg>
+          </button>
+          <div class="lightbox__frame">
+            <img class="lightbox__image" alt="" />
+          </div>
+          <button type="button" class="lightbox__nav lightbox__nav--next" aria-label="Next image">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M10 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+        <p class="lightbox__counter" aria-live="polite"></p>
+        <p class="lightbox__caption" id="lightbox-caption"></p>
+      </div>
+    </div>
+
     <script src="theme.js"></script>
+    <script src="lightbox.js"></script>
   </body>
 </html>

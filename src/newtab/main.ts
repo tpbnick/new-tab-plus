@@ -217,33 +217,42 @@ function getSearchBarElement(): HTMLElement {
 }
 
 function ensureRegions(app: HTMLElement): Regions {
-  let topBar = app.querySelector<HTMLElement>('.top-bar');
-  if (!topBar) {
-    app.innerHTML = '';
-
-    topBar = document.createElement('div');
-    topBar.className = 'top-bar';
-    app.appendChild(topBar);
-
-    const bookmarksGrid = document.createElement('div');
-    bookmarksGrid.className = 'bookmarks-grid';
-    app.appendChild(bookmarksGrid);
-  }
-
-  // Drop legacy separate sections row from older versions.
   app.querySelector('.sections-row')?.remove();
 
-  let bookmarksGrid = app.querySelector<HTMLElement>('.bookmarks-grid');
+  let main = app.querySelector<HTMLElement>('.ntp-main');
+  if (!main) {
+    main = document.createElement('div');
+    main.className = 'ntp-main';
+
+    const existingTopBar = app.querySelector('.top-bar');
+    const existingGrid = app.querySelector('.bookmarks-grid');
+
+    if (existingTopBar || existingGrid) {
+      app.appendChild(main);
+      if (existingTopBar) main.appendChild(existingTopBar);
+      if (existingGrid) main.appendChild(existingGrid);
+    } else {
+      app.innerHTML = '';
+      app.appendChild(main);
+    }
+  }
+
+  let topBar = main.querySelector<HTMLElement>('.top-bar');
+  let bookmarksGrid = main.querySelector<HTMLElement>('.bookmarks-grid');
+
+  if (!topBar) {
+    topBar = document.createElement('div');
+    topBar.className = 'top-bar';
+    main.insertBefore(topBar, bookmarksGrid);
+  }
+
   if (!bookmarksGrid) {
     bookmarksGrid = document.createElement('div');
     bookmarksGrid.className = 'bookmarks-grid';
-    app.appendChild(bookmarksGrid);
+    main.appendChild(bookmarksGrid);
   }
 
-  return {
-    topBar: app.querySelector<HTMLElement>('.top-bar')!,
-    bookmarksGrid,
-  };
+  return { topBar, bookmarksGrid };
 }
 
 function applyLiveTheme(): void {
