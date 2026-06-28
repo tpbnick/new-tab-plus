@@ -221,6 +221,25 @@ describe('reconcileBookmarkColumns', () => {
     expect(columns.flatMap((c) => stackFolders(c).map((f) => f.bookmarkId)).sort()).toEqual(['10', '48']);
   });
 
+  it('enables pre-existing disabled grid columns when their special section is turned on', () => {
+    const tree = buildTree([folder('10', 'Work', [])]);
+    const layout = createDefaultLayoutState();
+    const enabledLayout: LayoutState = {
+      ...layout,
+      columns: layout.columns.map((col) =>
+        col.type === 'specialSection' && col.id === 'special:mostVisited'
+          ? { ...col, enabled: true }
+          : col
+      ),
+    };
+
+    const { columns, layout: reconciled } = reconcileBookmarkColumns(tree, enabledLayout);
+    const gridCol = reconciled.columns.find((c) => c.id === 'grid:special:mostVisited');
+
+    expect(gridCol?.enabled).toBe(true);
+    expect(columns.find((c) => c.id === 'grid:special:mostVisited')).toBeDefined();
+  });
+
   it('drops disabled special sections from the rendered grid while keeping layout placement', () => {
     const tree = buildTree([folder('10', 'Work', [])]);
     const layout: LayoutState = {

@@ -172,6 +172,21 @@ function gridColumnsUnchanged(
   });
 }
 
+/** Pre-created section grid columns default to disabled; turn them on when their section is enabled. */
+function enableGridColumnsForActiveSections(
+  gridColumns: BookmarkGridColumnMeta[],
+  sections: Set<string>
+): BookmarkGridColumnMeta[] {
+  return gridColumns.map((col) => {
+    if (col.enabled) return col;
+    const stack = getColumnStack(col);
+    if (stack.some((id) => isSpecialSectionStackId(id) && sections.has(id))) {
+      return { ...col, enabled: true };
+    }
+    return col;
+  });
+}
+
 function dedupeStackAcrossColumns(columns: BookmarkGridColumnMeta[]): BookmarkGridColumnMeta[] {
   const seenBookmarks = new Set<string>();
   const seenSections = new Set<string>();
@@ -259,6 +274,8 @@ export function reconcileBookmarkColumns(tree: BookmarkNode[], layout: LayoutSta
   if (restoredSectionColumns.length > 0) {
     gridColumns = [...gridColumns, ...restoredSectionColumns].sort((a, b) => a.order - b.order);
   }
+
+  gridColumns = enableGridColumnsForActiveSections(gridColumns, sections);
 
   const reconciledColumns = [...otherColumns, ...gridColumns].sort((a, b) => a.order - b.order);
 

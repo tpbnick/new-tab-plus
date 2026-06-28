@@ -7,12 +7,18 @@ export function resolveRecentlyClosedUrl(tab: SessionTab): string {
   return (tab.url ?? tab.pendingUrl ?? '').trim();
 }
 
+function ownExtensionUrlPrefix(): string | undefined {
+  const id = typeof chrome !== 'undefined' ? chrome.runtime?.id : undefined;
+  return id ? `chrome-extension://${id.toLowerCase()}/` : undefined;
+}
+
 /** Browser/extension new-tab pages that should not appear in Recently Closed. */
 export function isHiddenRecentlyClosedUrl(url: string | undefined): boolean {
   const lower = (url ?? '').trim().toLowerCase();
   if (!lower) return false;
 
-  if (lower.startsWith('chrome-extension://')) return true;
+  const ownPrefix = ownExtensionUrlPrefix();
+  if (ownPrefix && lower.startsWith(ownPrefix)) return true;
   if (lower.startsWith('brave://newtab')) return true;
   if (lower.startsWith('chrome://newtab')) return true;
   if (lower.startsWith('edge://newtab')) return true;
@@ -54,13 +60,12 @@ export async function getRecentlyClosed(itemCount = 8): Promise<SectionItem[]> {
     if (items.length >= itemCount) break;
 
     if (session.tab) {
+      if (!session.tab.sessionId) continue;
+
       const url = resolveRecentlyClosedUrl(session.tab);
-      if (shouldSkipRecentlyClosedEntry(session.tab.title, url)) continue;
+      if (isHiddenRecentlyClosedUrl(url)) continue;
 
-      const title = session.tab.title?.trim() || url;
-      if (!title) continue;
-      if (!url && !session.tab.sessionId) continue;
-
+      const title = session.tab.title?.trim() || url || 'Closed tab';
       items.push({ title, url, sessionId: session.tab.sessionId });
     } else if (session.window) {
       const tabs = session.window.tabs ?? [];

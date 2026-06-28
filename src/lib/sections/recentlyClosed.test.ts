@@ -1,21 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  getRecentlyClosed,
   resolveRecentlyClosedUrl,
   shouldSkipRecentlyClosedEntry,
+  isHiddenRecentlyClosedUrl,
 } from './recentlyClosed';
 
+describe('isHiddenRecentlyClosedUrl', () => {
+  it('hides this extension new-tab URLs but not other extension pages', () => {
+    vi.stubGlobal('chrome', { runtime: { id: 'abc123' } });
+    expect(isHiddenRecentlyClosedUrl('chrome-extension://abc123/src/newtab/index.html')).toBe(true);
+    expect(isHiddenRecentlyClosedUrl('chrome-extension://otherext/page.html')).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('shouldSkipRecentlyClosedEntry', () => {
-  it('skips browser and extension new-tab URLs', () => {
-    expect(
-      shouldSkipRecentlyClosedEntry('Untitled', 'chrome-extension://abc123/index.html')
-    ).toBe(true);
-    expect(
-      shouldSkipRecentlyClosedEntry('New Tab', 'brave://newtab')
-    ).toBe(true);
-    expect(
-      shouldSkipRecentlyClosedEntry('New Tab', 'brave://newtab/')
-    ).toBe(true);
+  it('skips browser new-tab URLs', () => {
+    expect(shouldSkipRecentlyClosedEntry('New Tab', 'brave://newtab')).toBe(true);
+    expect(shouldSkipRecentlyClosedEntry('New Tab', 'brave://newtab/')).toBe(true);
     expect(shouldSkipRecentlyClosedEntry('New Tab', 'chrome://newtab/')).toBe(true);
+  });
+
+  it('does not skip other extension pages', () => {
+    expect(shouldSkipRecentlyClosedEntry('Other', 'chrome-extension://otherext/page.html')).toBe(false);
   });
 
   it('skips untitled entries with no URL from sessions API', () => {
@@ -38,5 +46,23 @@ describe('resolveRecentlyClosedUrl', () => {
         pendingUrl: 'https://example.com',
       } as chrome.sessions.Session['tab'])
     ).toBe('https://example.com');
+  });
+});
+
+describe('getRecentlyClosed', () => {
+  it('includes tabs restorable by sessionId when url and title are missing', async () => {
+    vi.stubGlobal('chrome', {
+      sessions: {
+        getRecentlyClosed: vi.fn().mockResolvedValue([
+          { tab: { sessionId: 'sess-1', url: undefined, title: undefined } },
+        ]),
+      },
+    });
+
+    await expect(getRecentlyClosed()).resolves.toEqual([
+      { title: 'Closed tab', url: '', sessionId: 'sess-1' },
+    ]);
+
+    vi.unstubAllGlobals();
   });
 });
