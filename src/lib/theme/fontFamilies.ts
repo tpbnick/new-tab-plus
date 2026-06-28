@@ -8,6 +8,11 @@ export interface FontFamilyOption {
 /** Popular font stacks for the theme picker. Each value is a full CSS font-family list. */
 export const FONT_FAMILY_OPTIONS: FontFamilyOption[] = [
   { label: 'System default', value: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+  {
+    label: 'Atkinson Hyperlegible',
+    value: '"Atkinson Hyperlegible", system-ui, sans-serif',
+    googleFont: 'Atkinson Hyperlegible',
+  },
   { label: 'Inter', value: 'Inter, system-ui, sans-serif', googleFont: 'Inter' },
   { label: 'Roboto', value: 'Roboto, Arial, sans-serif', googleFont: 'Roboto' },
   { label: 'Open Sans', value: '"Open Sans", Arial, sans-serif', googleFont: 'Open Sans' },

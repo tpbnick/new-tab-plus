@@ -976,7 +976,8 @@ function renderSearchBarSettings(container: HTMLElement, deps: SettingsDeps): vo
         (engine) => {
           deps.options.topBar.searchEngine = engine as (typeof SEARCH_ENGINES)[number];
           deps.saveOptionsNow();
-        }
+        },
+        'options-select--wide'
       )
     )
   );
