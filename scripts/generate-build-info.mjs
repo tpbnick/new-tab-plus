@@ -15,7 +15,6 @@ const tagline =
 const placeholder = {
   shortSha: '0000000',
   fullSha: '0'.repeat(40),
-  message: 'Initial release',
   date: '—',
 };
 
@@ -24,12 +23,8 @@ let commit = { ...placeholder };
 try {
   const shortSha = execSync('git rev-parse --short HEAD', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   const fullSha = execSync('git rev-parse HEAD', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  const logLine = execSync("git log -1 '--format=%s|%cI'", { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  const separator = logLine.indexOf('|');
-  const message = separator === -1 ? logLine : logLine.slice(0, separator);
-  const date = separator === -1 ? '—' : logLine.slice(separator + 1, separator + 11);
-
-  commit = { shortSha, fullSha, message, date };
+  const date = execSync("git log -1 '--format=%cI'", { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().slice(0, 10);
+  commit = { shortSha, fullSha, date: date || placeholder.date };
 } catch {
   /* no git repo or no commits yet — keep placeholder */
 }
@@ -46,7 +41,6 @@ export const AUTHOR_URL = 'https://nickplatt.dev';
 
 export const LATEST_CHANGE = {
   shortSha: ${JSON.stringify(commit.shortSha)},
-  message: ${JSON.stringify(commit.message)},
   date: ${JSON.stringify(commit.date)},
   commitUrl: ${JSON.stringify(`${repoUrl}/commit/${commit.fullSha}`)},
 } as const;

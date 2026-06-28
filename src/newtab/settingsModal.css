@@ -321,6 +321,37 @@
   text-decoration: underline;
 }
 
+.about-panel__latest-change-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.about-panel__latest-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.about-panel__latest-change:hover {
+  text-decoration: none;
+}
+
+.about-panel__latest-change:hover .about-panel__latest-change-sha {
+  text-decoration: underline;
+}
+
+.about-panel__github-icon {
+  display: inline-flex;
+  line-height: 0;
+  opacity: 0.85;
+}
+
+.about-panel__latest-change:hover .about-panel__github-icon {
+  opacity: 1;
+}
+
 .about-panel__credit {
   margin: 0.75em 0 0;
   padding-top: 0.75em;
