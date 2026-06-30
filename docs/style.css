@@ -163,11 +163,14 @@ main {
 }
 
 .hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   margin-bottom: 3rem;
 }
 
-.hero img {
+.hero-icon {
   border-radius: 20px;
   margin-bottom: 1rem;
 }
@@ -183,6 +186,21 @@ main {
   margin: 0 auto;
   max-width: 36ch;
   color: var(--text-muted);
+}
+
+.chrome-store-badge {
+  display: block;
+  margin: 1.25rem auto 0;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.chrome-store-badge img {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
 }
 
 .hero-actions {
