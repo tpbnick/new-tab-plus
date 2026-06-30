@@ -8,7 +8,7 @@ import {
   GITHUB_REPO_URL,
   LATEST_CHANGE,
 } from './appMeta.generated';
-import type { SettingsDeps } from '../settings/settingsPanels';
+import type { SettingsDeps } from '../settings/deps';
 import { createCheckboxInput as checkbox, createOptionsRow as row } from '../ui/formControls';
 
 function externalLink(href: string, label: string): HTMLAnchorElement {
