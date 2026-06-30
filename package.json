@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run icons && vite",
+    "dev": "npm run icons && npm run build-info && vite",
     "icons": "node scripts/generate-icons.mjs",
     "build-info": "node scripts/generate-build-info.mjs",
-    "build": "npm run icons && tsc --noEmit && vite build",
+    "build": "npm run icons && npm run build-info && tsc --noEmit && vite build",
     "package": "node scripts/zip.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts"
