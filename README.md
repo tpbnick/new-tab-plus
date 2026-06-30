@@ -6,11 +6,9 @@
 
 A bookmarks-driven, widget-extensible new tab page for Chrome.
 
-<p align="center">
-  <a href="https://chromewebstore.google.com/detail/dkjlggnlonimcbcpjjiapolpibakcdeo?utm_source=item-share-cb">
-    <img src="docs/images/chrome-web-store-badge.png" alt="Available in the Chrome Web Store" width="220">
-  </a>
-</p>
+<a href="https://chromewebstore.google.com/detail/dkjlggnlonimcbcpjjiapolpibakcdeo?utm_source=item-share-cb">
+  <img src="docs/images/chrome-web-store-badge.png" alt="Available in the Chrome Web Store" width="220">
+</a>
 
 **Website:** [User guide & privacy policy](https://tpbnick.github.io/new-tab-plus/)
 
