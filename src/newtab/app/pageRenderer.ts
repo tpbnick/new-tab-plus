@@ -10,9 +10,9 @@ import { attachCollapsible } from '../../lib/ui/collapsible';
 import { LayoutPersistError } from '../../lib/storage/layoutPersistError';
 import { showSaveError } from '../../lib/ui/saveErrorBanner';
 import {
-  getLayout,
   getOptionsLocal,
   getOptionsSynced,
+  loadLayout,
   optionsAffectLayout,
   optionsOnlyGridInteractionsChanged,
   setLayout,
@@ -274,19 +274,29 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
 
     const skipOptionsFetch = scope === 'bookmarks';
     let storedLayout: LayoutState;
+    let layoutHadStoredCopy: boolean;
     let optionsSynced: OptionsState;
     let optionsLocal: OptionsLocalState;
 
     if (skipOptionsFetch) {
-      storedLayout = appState.layoutState;
+      // Reload from storage when the tab has no pending local edits — otherwise a tab left
+      // open for a long time can reconcile and persist stale column order over newer sync data.
+      if (appState.layoutDirty) {
+        storedLayout = appState.layoutState;
+        layoutHadStoredCopy = true;
+      } else {
+        const layoutLoad = await loadLayout(appState.optionsState);
+        storedLayout = layoutLoad.layout;
+        layoutHadStoredCopy = layoutLoad.hadStoredLayout;
+      }
       optionsSynced = appState.optionsState;
       optionsLocal = appState.optionsLocalState;
     } else {
-      [storedLayout, optionsSynced, optionsLocal] = await Promise.all([
-        getLayout(),
-        getOptionsSynced(),
-        getOptionsLocal(),
-      ]);
+      optionsSynced = await getOptionsSynced();
+      optionsLocal = await getOptionsLocal();
+      const layoutLoad = await loadLayout(optionsSynced);
+      storedLayout = layoutLoad.layout;
+      layoutHadStoredCopy = layoutLoad.hadStoredLayout;
     }
     if (generation !== appState.renderGeneration) return;
 
@@ -300,10 +310,11 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
     const baseLayout = appState.layoutDirty ? appState.layoutState : storedLayout;
     let { layout, columns } = reconcileBookmarkColumns(tree, baseLayout);
     const layoutStructureChanged = layout !== baseLayout;
+    const mayPersistReconciledLayout = layoutHadStoredCopy || appState.layoutDirty;
 
-    if (layoutStructureChanged) {
+    if (layoutStructureChanged && mayPersistReconciledLayout) {
       try {
-        await setLayout(layout);
+        await setLayout(layout, appState.optionsState);
         appState.layoutDirty = false;
       } catch (err) {
         console.error('[new-tab-plus] failed to save layout', err);
@@ -344,7 +355,7 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
       layout = { ...layout, folderState: { ...layout.folderState, ...appState.layoutState.folderState } };
       appState.layoutState = { ...appState.layoutState, folderState: layout.folderState };
       try {
-        await setLayout(layout);
+        await setLayout(layout, appState.optionsState);
         appState.layoutDirty = false;
       } catch (err) {
         console.error('[new-tab-plus] failed to save layout', err);

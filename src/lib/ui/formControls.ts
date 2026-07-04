@@ -1,12 +1,83 @@
 import { parseCssColor, replaceRgbaColor, rgbToHex } from '../theme/colorUtils';
 import { snapPercent } from './percentSnap';
 
-export function createOptionsRow(label: string, input: HTMLElement): HTMLElement {
-  const wrap = document.createElement('label');
+export interface OptionsRowOptions {
+  /** Shown in a hover tooltip on the ? help icon beside the label. */
+  help?: string;
+}
+
+let activeHelpTooltip: HTMLElement | null = null;
+
+function hideHelpTooltip(): void {
+  activeHelpTooltip?.remove();
+  activeHelpTooltip = null;
+}
+
+function showHelpTooltip(trigger: HTMLElement, text: string): void {
+  hideHelpTooltip();
+  const tip = document.createElement('div');
+  tip.className = 'options-help-tooltip';
+  tip.textContent = text;
+  tip.setAttribute('role', 'tooltip');
+  document.body.appendChild(tip);
+  activeHelpTooltip = tip;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let left = triggerRect.left + triggerRect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  const top = triggerRect.bottom + 8;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+export function createOptionsHelpTrigger(text: string): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'options-help-trigger';
+  btn.textContent = '?';
+  btn.setAttribute('aria-label', text);
+
+  btn.addEventListener('mousedown', (event) => event.preventDefault());
+  btn.addEventListener('mouseenter', () => showHelpTooltip(btn, text));
+  btn.addEventListener('mouseleave', hideHelpTooltip);
+  btn.addEventListener('focus', () => showHelpTooltip(btn, text));
+  btn.addEventListener('blur', hideHelpTooltip);
+
+  return btn;
+}
+
+export function createOptionsRow(
+  label: string,
+  input: HTMLElement,
+  options: OptionsRowOptions = {}
+): HTMLElement {
+  if (!options.help) {
+    const wrap = document.createElement('label');
+    wrap.className = 'options-row';
+    const span = document.createElement('span');
+    span.textContent = label;
+    wrap.append(span, input);
+    return wrap;
+  }
+
+  const wrap = document.createElement('div');
   wrap.className = 'options-row';
-  const span = document.createElement('span');
-  span.textContent = label;
-  wrap.append(span, input);
+
+  if (!input.id) {
+    input.id = `ntp-options-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  const labelWrap = document.createElement('label');
+  labelWrap.className = 'options-row__label';
+  labelWrap.htmlFor = input.id;
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'options-row__text';
+  textSpan.textContent = label;
+
+  labelWrap.append(textSpan, createOptionsHelpTrigger(options.help));
+  wrap.append(labelWrap, input);
   return wrap;
 }
 

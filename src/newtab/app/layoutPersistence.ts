@@ -9,7 +9,7 @@ import { applyLiveTheme } from './themeLive';
 
 export async function persistLayout(): Promise<void> {
   try {
-    await setLayout(appState.layoutState);
+    await setLayout(appState.layoutState, appState.optionsState);
     appState.layoutDirty = false;
   } catch (err) {
     console.error('[new-tab-plus] failed to save layout', err);
@@ -79,8 +79,10 @@ export function saveOptionsLocal(): void {
 }
 
 export async function flushPendingSavesAsync(
-  refreshWidgetUiAfterSettingsSave: (widgetId: string) => void
+  refreshWidgetUiAfterSettingsSave: (widgetId: string) => void,
+  options: { includeLayout?: boolean } = {}
 ): Promise<void> {
+  const includeLayout = options.includeLayout !== false;
   window.clearTimeout(appState.saveLayoutTimer);
   window.clearTimeout(appState.saveOptionsTimer);
   window.clearTimeout(appState.saveOptionsLocalTimer);
@@ -89,7 +91,7 @@ export async function flushPendingSavesAsync(
   const widgetIds = [...appState.pendingWidgetSettingsSaves];
   appState.pendingWidgetSettingsSaves.clear();
 
-  const needsLayoutPersist = appState.layoutDirty || widgetIds.length > 0;
+  const needsLayoutPersist = includeLayout && (appState.layoutDirty || widgetIds.length > 0);
   const saves: Promise<void>[] = [];
   if (needsLayoutPersist) {
     saves.push(persistLayout());

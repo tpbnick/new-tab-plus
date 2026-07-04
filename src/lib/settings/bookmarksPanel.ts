@@ -138,19 +138,20 @@ export function renderBookmarksPanel(container: HTMLElement, deps: SettingsDeps)
         )
       );
 
-      const lockHelp = document.createElement('p');
-      lockHelp.className = 'options-help';
-      lockHelp.textContent =
-        'When locked, folder and section headers cannot be dragged to rearrange columns.';
-      body.appendChild(lockHelp);
-
-      const resetHelp = document.createElement('p');
-      resetHelp.className = 'options-help';
-      resetHelp.textContent = 'Restore the default column layout. Your Chrome bookmarks are not changed.';
-      body.appendChild(resetHelp);
+      body.appendChild(
+        row(
+          'Sync layout across devices',
+          checkbox(deps.options.general.syncBookmarkLayout, (v) => {
+            deps.onSyncBookmarkLayoutChange?.(v);
+          }),
+          {
+            help: 'When enabled, layout is shared across signed-in devices via Chrome Sync. Turn off to keep layout on this device only.',
+          }
+        )
+      );
 
       const resetActions = document.createElement('div');
-      resetActions.className = 'options-actions';
+      resetActions.className = 'options-actions options-actions--end';
 
       const resetBtn = document.createElement('button');
       resetBtn.type = 'button';
