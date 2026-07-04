@@ -16,14 +16,22 @@ import { createDefaultLayoutState, createDefaultOptionsState, mergeOptionsState,
 function makeStorageArea() {
   const data: Record<string, unknown> = {};
   return {
-    async get(key: string) {
+    async get(key: string | string[] | null) {
+      if (key === null) return { ...data };
+      if (Array.isArray(key)) {
+        return Object.fromEntries(key.filter((k) => k in data).map((k) => [k, data[k]]));
+      }
       return key in data ? { [key]: data[key] } : {};
     },
     async set(items: Record<string, unknown>) {
       Object.assign(data, items);
     },
-    _data: data,
+    data,
   };
+}
+
+function mockStorageData(area: 'sync' | 'local'): Record<string, unknown> {
+  return (chrome.storage[area] as unknown as ReturnType<typeof makeStorageArea>).data;
 }
 
 beforeEach(() => {
@@ -76,8 +84,8 @@ describe('storage', () => {
     layout.folderState = { '10': { collapsed: true } };
 
     await setLayout(layout, options);
-    expect(chrome.storage.sync._data.layout).toBeUndefined();
-    expect(chrome.storage.local._data.layout).toBeDefined();
+    expect(mockStorageData('sync').layout).toBeUndefined();
+    expect(mockStorageData('local').layout).toBeDefined();
 
     const reloaded = await getLayout(options);
     expect(reloaded.folderState).toEqual({ '10': { collapsed: true } });
@@ -115,7 +123,7 @@ describe('storage', () => {
     const loaded = await loadLayout();
     expect(loaded.hadStoredLayout).toBe(true);
     expect(loaded.layout.folderState).toEqual({ '2': { collapsed: true } });
-    expect(chrome.storage.sync._data.layout).toBeDefined();
+    expect(mockStorageData('sync').layout).toBeDefined();
   });
 
   it('returns default options state when nothing is stored', async () => {
