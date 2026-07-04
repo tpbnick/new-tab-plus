@@ -3,10 +3,13 @@ import {
   getLayout,
   getOptionsLocal,
   getOptionsSynced,
+  loadLayout,
+  migrateLayoutStorage,
   optionsAffectLayout,
   optionsGridInteractionsChanged,
   optionsOnlyGridInteractionsChanged,
   setLayout,
+  setOptionsSynced,
 } from './storage';
 import { createDefaultLayoutState, createDefaultOptionsState, mergeOptionsState, SCHEMA_VERSION, type OptionsState, type TopBarItemId } from './schema';
 
@@ -34,8 +37,10 @@ beforeEach(() => {
 
 describe('storage', () => {
   it('returns default layout state when nothing is stored', async () => {
-    const layout = await getLayout();
+    const { layout, hadStoredLayout, source } = await loadLayout();
     expect(layout).toEqual(createDefaultLayoutState());
+    expect(hadStoredLayout).toBe(false);
+    expect(source).toBe('default');
   });
 
   it('seeds default layout with all four special sections present but disabled', async () => {
@@ -60,6 +65,57 @@ describe('storage', () => {
     await setLayout(layout);
     const reloaded = await getLayout();
     expect(reloaded).toEqual(layout);
+  });
+
+  it('stores layout locally when sync bookmark layout is disabled', async () => {
+    const options = createDefaultOptionsState();
+    options.general.syncBookmarkLayout = false;
+    await setOptionsSynced(options);
+
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '10': { collapsed: true } };
+
+    await setLayout(layout, options);
+    expect(chrome.storage.sync._data.layout).toBeUndefined();
+    expect(chrome.storage.local._data.layout).toBeDefined();
+
+    const reloaded = await getLayout(options);
+    expect(reloaded.folderState).toEqual({ '10': { collapsed: true } });
+  });
+
+  it('copies layout to local storage when toggling sync off', async () => {
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '99': { collapsed: true } };
+    await setLayout(layout);
+
+    await migrateLayoutStorage(false, layout);
+
+    const options = createDefaultOptionsState();
+    options.general.syncBookmarkLayout = false;
+    const localLayout = await getLayout(options);
+    expect(localLayout.folderState).toEqual({ '99': { collapsed: true } });
+  });
+
+  it('reports hadStoredLayout when layout exists in sync storage', async () => {
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '1': { collapsed: true } };
+    await setLayout(layout);
+
+    const loaded = await loadLayout();
+    expect(loaded.hadStoredLayout).toBe(true);
+    expect(loaded.source).toBe('sync');
+    expect(loaded.layout.folderState).toEqual({ '1': { collapsed: true } });
+  });
+
+  it('falls back from empty sync to local layout when sync is enabled', async () => {
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '2': { collapsed: true } };
+    await chrome.storage.local.set({ layout });
+
+    const loaded = await loadLayout();
+    expect(loaded.hadStoredLayout).toBe(true);
+    expect(loaded.layout.folderState).toEqual({ '2': { collapsed: true } });
+    expect(chrome.storage.sync._data.layout).toBeDefined();
   });
 
   it('returns default options state when nothing is stored', async () => {

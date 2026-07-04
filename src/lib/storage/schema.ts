@@ -82,6 +82,8 @@ export interface OptionsState {
     lockColumns: boolean;
     /** When true, check GitHub releases for extension updates. */
     checkForUpdates: boolean;
+    /** When true, bookmark column layout is stored in Chrome Sync; when false, this device only. */
+    syncBookmarkLayout: boolean;
   };
   topBar: {
     /** Left-to-right order of search and built-in widgets. Disabled widgets are skipped at render. */
@@ -203,6 +205,7 @@ export function createDefaultOptionsState(): OptionsState {
       folderCollapseAnimationMs: 250,
       lockColumns: false,
       checkForUpdates: true,
+      syncBookmarkLayout: true,
     },
     topBar: {
       itemOrder: ['search', 'clock', 'weather'],

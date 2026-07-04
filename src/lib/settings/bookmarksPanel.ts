@@ -138,6 +138,21 @@ export function renderBookmarksPanel(container: HTMLElement, deps: SettingsDeps)
         )
       );
 
+      body.appendChild(
+        row(
+          'Sync column layout across devices',
+          checkbox(deps.options.general.syncBookmarkLayout, (v) => {
+            deps.onSyncBookmarkLayoutChange?.(v);
+          })
+        )
+      );
+
+      const syncHelp = document.createElement('p');
+      syncHelp.className = 'options-help';
+      syncHelp.textContent =
+        'When on, column order syncs via Chrome Sync. Turn off to keep layout on this device only — useful if multiple computers overwrite each other.';
+      body.appendChild(syncHelp);
+
       const lockHelp = document.createElement('p');
       lockHelp.className = 'options-help';
       lockHelp.textContent =

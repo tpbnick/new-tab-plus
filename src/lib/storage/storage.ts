@@ -56,21 +56,87 @@ function layoutNeedsPersist(raw: unknown, sanitized: LayoutState): boolean {
   return !isLayoutNormalized(sanitized);
 }
 
-export async function getLayout(): Promise<LayoutState> {
-  const result = await chrome.storage.sync.get(KEYS.layout);
-  const raw = result[KEYS.layout];
-  if (raw === undefined) {
-    return createDefaultLayoutState();
-  }
-  const sanitized = loadLayoutFromRaw(raw);
-  if (layoutNeedsPersist(raw, sanitized)) {
-    void writeTo(chrome.storage.sync, KEYS.layout, sanitized);
-  }
-  return sanitized;
+export function readSyncBookmarkLayoutEnabledFromOptions(options: OptionsState): boolean {
+  return options.general.syncBookmarkLayout !== false;
 }
 
-export async function setLayout(state: LayoutState): Promise<void> {
-  return writeTo(chrome.storage.sync, KEYS.layout, loadLayoutFromRaw(state));
+export async function readSyncBookmarkLayoutEnabled(): Promise<boolean> {
+  const result = await chrome.storage.sync.get(KEYS.options);
+  const raw = result[KEYS.options];
+  if (!raw || typeof raw !== 'object') return true;
+  return readSyncBookmarkLayoutEnabledFromOptions(mergeOptionsState(raw as Partial<OptionsState>));
+}
+
+function layoutStorageArea(syncEnabled: boolean): chrome.storage.StorageArea {
+  return syncEnabled ? chrome.storage.sync : chrome.storage.local;
+}
+
+async function readLayoutFromArea(area: chrome.storage.StorageArea): Promise<LayoutState | undefined> {
+  const result = await area.get(KEYS.layout);
+  const raw = result[KEYS.layout];
+  if (raw === undefined) return undefined;
+  return loadLayoutFromRaw(raw);
+}
+
+export type LayoutStorageSource = 'sync' | 'local' | 'default';
+
+export interface LayoutLoadResult {
+  layout: LayoutState;
+  source: LayoutStorageSource;
+  /** False when no layout existed in either storage area (implicit default only). */
+  hadStoredLayout: boolean;
+}
+
+export async function loadLayout(options?: OptionsState): Promise<LayoutLoadResult> {
+  const useSync = options
+    ? readSyncBookmarkLayoutEnabledFromOptions(options)
+    : await readSyncBookmarkLayoutEnabled();
+  const primaryArea = layoutStorageArea(useSync);
+  const primarySource: LayoutStorageSource = useSync ? 'sync' : 'local';
+  const result = await primaryArea.get(KEYS.layout);
+  const raw = result[KEYS.layout];
+
+  if (raw !== undefined) {
+    const sanitized = loadLayoutFromRaw(raw);
+    if (layoutNeedsPersist(raw, sanitized)) {
+      void writeTo(primaryArea, KEYS.layout, sanitized);
+    }
+    return { layout: sanitized, source: primarySource, hadStoredLayout: true };
+  }
+
+  const fallbackArea = layoutStorageArea(!useSync);
+  const fallback = await readLayoutFromArea(fallbackArea);
+  if (fallback) {
+    void writeTo(primaryArea, KEYS.layout, fallback);
+    return { layout: fallback, source: primarySource, hadStoredLayout: true };
+  }
+
+  return {
+    layout: createDefaultLayoutState(),
+    source: 'default',
+    hadStoredLayout: false,
+  };
+}
+
+export async function getLayout(options?: OptionsState): Promise<LayoutState> {
+  const { layout } = await loadLayout(options);
+  return layout;
+}
+
+export async function setLayout(state: LayoutState, options?: OptionsState): Promise<void> {
+  const useSync = options
+    ? readSyncBookmarkLayoutEnabledFromOptions(options)
+    : await readSyncBookmarkLayoutEnabled();
+  return writeTo(layoutStorageArea(useSync), KEYS.layout, loadLayoutFromRaw(state));
+}
+
+/** Copy the current layout into the storage area that will be used after toggling sync. */
+export async function migrateLayoutStorage(
+  enableSync: boolean,
+  currentLayout: LayoutState
+): Promise<void> {
+  const sanitized = loadLayoutFromRaw(currentLayout);
+  await writeTo(layoutStorageArea(enableSync), KEYS.layout, sanitized);
 }
 
 function normalizeOptions(state: OptionsState): OptionsState {

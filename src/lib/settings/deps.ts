@@ -31,4 +31,6 @@ export interface SettingsDeps {
   setOptionsDirect(options: OptionsState): void;
   setOptionsLocalDirect(optionsLocal: OptionsLocalState): void;
   onCheckForUpdatesChange?(enabled: boolean): void;
+  /** Switch bookmark layout between Chrome Sync and device-local storage. */
+  onSyncBookmarkLayoutChange?(enabled: boolean): void;
 }
