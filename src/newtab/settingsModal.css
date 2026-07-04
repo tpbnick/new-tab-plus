@@ -391,8 +391,70 @@
   padding: 0.5em 0;
 }
 
-.options-row span {
+.options-row > span {
   flex: 1;
+}
+
+.options-row__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex: 0 0 auto;
+  margin: 0;
+  min-width: 0;
+}
+
+.options-row__text {
+  flex: 0 1 auto;
+}
+
+.options-help-trigger {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  color: var(--ntp-color-text-muted, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 82%, transparent));
+  background: color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 14%, transparent);
+  cursor: help;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.options-help-trigger:hover,
+.options-help-trigger:focus-visible {
+  color: var(--ntp-color-text, #e8e8f0);
+  background: color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 40%, transparent);
+  outline: none;
+}
+
+.options-help-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 0.65em 0.75em;
+  border-radius: 0.5em;
+  font-size: 0.82em;
+  line-height: 1.45;
+  color: var(--ntp-color-text, #e8e8f0);
+  background: color-mix(in srgb, var(--ntp-color-background, #15161e) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 18%, transparent);
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.18),
+    0 12px 28px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .options-row input[type='checkbox'] {
@@ -574,6 +636,10 @@
   margin-bottom: 0.75em;
 }
 
+.options-actions--end {
+  justify-content: flex-end;
+}
+
 .options-actions select {
   flex: 1;
   font: inherit;
@@ -590,7 +656,7 @@
 }
 
 .options-actions button,
-.settings-modal__content button:not(.options-collapsible__header):not(.options-json-copy) {
+.settings-modal__content button:not(.options-collapsible__header):not(.options-json-copy):not(.options-help-trigger) {
   padding: 0.5em 0.875em;
   font: inherit;
   border: 1px solid color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 15%, transparent);
@@ -600,7 +666,7 @@
 }
 
 .options-actions button:hover,
-.settings-modal__content button:not(.options-collapsible__header):not(.options-json-copy):hover {
+.settings-modal__content button:not(.options-collapsible__header):not(.options-json-copy):not(.options-help-trigger):hover {
   background: color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 12%, transparent);
 }
 
