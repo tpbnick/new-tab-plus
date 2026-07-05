@@ -33,3 +33,8 @@
 .weather-compact--loading {
   opacity: 0.55;
 }
+
+.weather-compact--unconfigured {
+  opacity: 0.45;
+  cursor: help;
+}

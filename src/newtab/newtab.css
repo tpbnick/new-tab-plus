@@ -119,7 +119,7 @@ html[data-top-bar-full-width] .top-bar {
 }
 
 .top-bar > .widget-inline[data-widget-id='weather'] .widget-body {
-  width: 100%;
+  width: auto;
 }
 
 .top-bar > .widget-inline .weather-compact {
