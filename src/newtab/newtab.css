@@ -123,10 +123,8 @@ html[data-top-bar-full-width] .top-bar {
 }
 
 .top-bar > .widget-inline .weather-compact {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   height: 100%;
+  align-content: center;
   line-height: 1.2;
 }
 
@@ -134,30 +132,18 @@ html[data-top-bar-full-width] .top-bar {
   opacity: 0.55;
 }
 
-.top-bar > .widget-inline .weather-compact__current {
-  display: flex;
-  align-items: center;
-  gap: 0.375em;
-  line-height: 1.2;
-}
-
 .top-bar > .widget-inline .weather-compact__temp {
   font-size: calc(1.15em * var(--ntp-top-bar-widget-scale, 1));
   font-weight: 600;
   line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-  min-width: 4ch;
 }
 
 .top-bar > .widget-inline .weather-compact__range {
   font-size: calc(0.78em * var(--ntp-top-bar-widget-scale, 1));
   color: var(--ntp-color-text-muted, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 82%, transparent));
-  font-variant-numeric: tabular-nums;
-  min-width: 11ch;
-  white-space: nowrap;
 }
 
-.top-bar > .widget-inline .weather-icon {
+.top-bar > .widget-inline .weather-compact .weather-icon {
   width: calc(1.15em * var(--ntp-top-bar-widget-scale, 1));
   height: calc(1.15em * var(--ntp-top-bar-widget-scale, 1));
 }
