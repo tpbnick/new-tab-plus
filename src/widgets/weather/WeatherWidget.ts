@@ -29,7 +29,7 @@ const defaultSettings: WeatherSettings = {
   resolvedQuery: '',
   latitude: null,
   longitude: null,
-  tempUnit: 'celsius',
+  tempUnit: 'fahrenheit',
   ttlMinutes: 20,
 };
 
@@ -43,7 +43,7 @@ const settingsSchema: WidgetSettingsField[] = [
       { value: 'celsius', label: 'Celsius' },
       { value: 'fahrenheit', label: 'Fahrenheit' },
     ],
-    default: 'celsius',
+    default: 'fahrenheit',
   },
   { key: 'ttlMinutes', label: 'Refresh interval (minutes)', type: 'number', default: 20 },
 ];
@@ -112,7 +112,7 @@ class WeatherWidgetInstance implements WidgetInstance {
     }
 
     if (this.settings.latitude == null || this.settings.longitude == null) {
-      this.container.innerHTML = '<p class="widget-empty-state">Set a location in widget settings (⚙) to show weather.</p>';
+      this.renderUnconfigured();
       return;
     }
 
@@ -169,17 +169,43 @@ class WeatherWidgetInstance implements WidgetInstance {
     });
   }
 
+  private isTopBarWidget(): boolean {
+    return Boolean(this.container.closest('.top-bar .widget-inline'));
+  }
+
+  private renderUnconfigured(): void {
+    if (this.isTopBarWidget()) {
+      this.renderCompact({
+        temp: '--°',
+        icon: 'cloud',
+        title: 'Set a location in Settings → Widgets → Weather',
+        unconfigured: true,
+      });
+      return;
+    }
+
+    this.container.replaceChildren();
+    const msg = document.createElement('p');
+    msg.className = 'widget-empty-state';
+    msg.textContent = 'Set a location in widget settings.';
+    this.container.appendChild(msg);
+  }
+
   private renderCompact(options: {
     temp: string;
-    range: string;
+    range?: string;
     icon: WeatherIconName;
     loading?: boolean;
+    unconfigured?: boolean;
     title?: string;
   }): void {
     this.container.replaceChildren();
 
     const wrap = document.createElement('div');
-    wrap.className = options.loading ? 'weather-compact weather-compact--loading' : 'weather-compact';
+    const classes = ['weather-compact'];
+    if (options.loading) classes.push('weather-compact--loading');
+    if (options.unconfigured) classes.push('weather-compact--unconfigured');
+    wrap.className = classes.join(' ');
     if (options.title) wrap.title = options.title;
 
     const currentRow = document.createElement('div');
@@ -192,10 +218,12 @@ class WeatherWidgetInstance implements WidgetInstance {
 
     wrap.appendChild(currentRow);
 
-    const range = document.createElement('span');
-    range.className = 'weather-compact__range';
-    range.textContent = options.range;
-    wrap.appendChild(range);
+    if (options.range) {
+      const range = document.createElement('span');
+      range.className = 'weather-compact__range';
+      range.textContent = options.range;
+      wrap.appendChild(range);
+    }
 
     this.container.appendChild(wrap);
   }
