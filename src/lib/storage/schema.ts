@@ -152,6 +152,10 @@ export interface OptionsLocalState {
   customCss: string;
   /** Latest release version the user dismissed from the update banner. */
   dismissedUpdateVersion: string;
+  /** When true, layout and options write to chrome.storage.sync. Off for new installs. */
+  syncToCloud: boolean;
+  /** data: URL for an uploaded background. Stays on this device; never synced. */
+  uploadedBackgroundImage: string;
 }
 
 export function createDefaultLayoutState(): LayoutState {
@@ -323,5 +327,7 @@ export function createDefaultOptionsLocalState(): OptionsLocalState {
     schemaVersion: SCHEMA_VERSION,
     customCss: '',
     dismissedUpdateVersion: '',
+    syncToCloud: false,
+    uploadedBackgroundImage: '',
   };
 }

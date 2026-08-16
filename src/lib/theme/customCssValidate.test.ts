@@ -26,6 +26,10 @@ describe('validateCustomCss', () => {
     expect(validateCustomCss('')).toEqual({ ok: true });
   });
 
+  it('accepts comments-only css', () => {
+    expect(validateCustomCss('/* note */')).toEqual({ ok: true });
+  });
+
   it('accepts valid rules', () => {
     expect(validateCustomCss('.column { color: red; }')).toEqual({ ok: true });
   });

@@ -40,9 +40,9 @@ import {
   handleStackKeyboardMove,
   type PersistLayoutAndRender,
 } from './gridFolderDrop';
-import { persistLayout, setFolderCollapsed } from './layoutPersistence';
+import { persistLayoutUnqueued, setFolderCollapsed } from './layoutPersistence';
 import { applyLiveCustomCss, applyLiveTheme } from './themeLive';
-import { appState } from './state';
+import { appState, markLayoutDirty } from './state';
 import {
   destroyTopBarWidgets,
   handleWidgetSettingsSaved,
@@ -84,10 +84,10 @@ export function handleRemoteOptionsChange(previous: OptionsState): void {
 }
 
 function getSearchBarElement(): HTMLElement {
-  if (!appState.searchBarElement) {
-    appState.searchBarElement = renderSearchBar(() => appState.optionsState.topBar.searchEngine);
+  if (!appState.searchBarHandle) {
+    appState.searchBarHandle = renderSearchBar(() => appState.optionsState.topBar.searchEngine);
   }
-  return appState.searchBarElement;
+  return appState.searchBarHandle.element;
 }
 
 function buildTopBarKey(topBar: OptionsState['topBar'], layout: LayoutState): string {
@@ -117,9 +117,10 @@ function renderTopBar(
   if (topBarKey === appState.cachedTopBarKey) return;
 
   destroyTopBarWidgets();
+  appState.searchBarHandle?.destroy();
+  appState.searchBarHandle = null;
   topBar.replaceChildren();
   appState.cachedTopBarKey = topBarKey;
-  appState.searchBarElement = null;
 
   const widgetColumnCallbacks = {
     onSettingsSaved: (instanceId: string, partial: Record<string, unknown>) =>
@@ -285,7 +286,7 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
         storedLayout = appState.layoutState;
         layoutHadStoredCopy = true;
       } else {
-        const layoutLoad = await loadLayout(appState.optionsState);
+        const layoutLoad = await loadLayout();
         storedLayout = layoutLoad.layout;
         layoutHadStoredCopy = layoutLoad.hadStoredLayout;
       }
@@ -294,7 +295,7 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
     } else {
       optionsSynced = await getOptionsSynced();
       optionsLocal = await getOptionsLocal();
-      const layoutLoad = await loadLayout(optionsSynced);
+      const layoutLoad = await loadLayout();
       storedLayout = layoutLoad.layout;
       layoutHadStoredCopy = layoutLoad.hadStoredLayout;
     }
@@ -314,11 +315,12 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
 
     if (layoutStructureChanged && mayPersistReconciledLayout) {
       try {
-        await setLayout(layout, appState.optionsState);
+        layout = await setLayout(layout);
         appState.layoutDirty = false;
       } catch (err) {
         console.error('[new-tab-plus] failed to save layout', err);
         showSaveError('Could not save layout. Check Chrome sync storage space.');
+        markLayoutDirty();
       }
       if (generation !== appState.renderGeneration) return;
     }
@@ -355,7 +357,8 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
       layout = { ...layout, folderState: { ...layout.folderState, ...appState.layoutState.folderState } };
       appState.layoutState = { ...appState.layoutState, folderState: layout.folderState };
       try {
-        await setLayout(layout, appState.optionsState);
+        layout = await setLayout(layout);
+        appState.layoutState = layout;
         appState.layoutDirty = false;
       } catch (err) {
         console.error('[new-tab-plus] failed to save layout', err);
@@ -414,7 +417,7 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
 export async function persistLayoutAndRenderLayout(): Promise<void> {
   appState.layoutUpdateChain = appState.layoutUpdateChain
     .then(async () => {
-      await persistLayout();
+      await persistLayoutUnqueued();
       await render('full');
     })
     .catch((err) => {

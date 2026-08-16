@@ -22,7 +22,7 @@ export interface SettingsDeps {
   /** Rebind folder expand/collapse handlers without rebuilding the grid. */
   rebindGridInteractions(): void;
   /** Persist any debounced settings/layout writes immediately. */
-  flushPendingSaves(): void;
+  flushPendingSaves(): void | Promise<void>;
   /** Persist widget settings and refresh the live top bar. */
   saveWidgetSettings(widgetId: string, partial: Record<string, unknown>): void;
   /** Rebuild bookmark columns from Chrome — one folder per column, default order. */
@@ -30,7 +30,6 @@ export interface SettingsDeps {
   setLayoutDirect(layout: LayoutState): void;
   setOptionsDirect(options: OptionsState): void;
   setOptionsLocalDirect(optionsLocal: OptionsLocalState): void;
+  setSyncToCloud(enabled: boolean): void | Promise<void>;
   onCheckForUpdatesChange?(enabled: boolean): void;
-  /** Switch bookmark layout between Chrome Sync and device-local storage. */
-  onSyncBookmarkLayoutChange?(enabled: boolean): void;
 }

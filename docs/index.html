@@ -236,12 +236,16 @@
             <kbd>↑</kbd> <kbd>↓</kbd> — move selection in the command palette
           </li>
           <li><kbd>Enter</kbd> — open the selected result</li>
+          <li><kbd>?</kbd> — open Settings</li>
           <li><kbd>Esc</kbd> — close Settings or the command palette</li>
         </ul>
 
         <h3>Backup &amp; sync</h3>
         <p>
-          Layout and most options sync through Chrome sync when signed in. Use
+          Layout and settings stay on this device by default. Turn on
+          <strong>Settings → Advanced → Save to cloud</strong> to sync them through your Google
+          account. Uploaded background images stay on this device and are not included. If you
+          already synced with an earlier version, Save to cloud stays enabled. Use
           <strong>Settings → Advanced</strong> to export or import your layout and options as JSON.
         </p>
 
@@ -254,7 +258,7 @@
 
       <section id="privacy" aria-labelledby="privacy-heading">
         <h2 id="privacy-heading">Privacy policy</h2>
-        <p class="privacy-meta">Last updated: June 26, 2026</p>
+        <p class="privacy-meta">Last updated: August 15, 2026</p>
 
         <p>
           This policy describes what the extension accesses and what leaves your browser.
@@ -264,14 +268,16 @@
         <p>
           New Tab Plus does not collect your personal data, and we never will. There is no
           analytics, telemetry, or user accounts. Settings and layout are stored locally in Chrome
-          (<code>chrome.storage</code>) and may sync through your Google account if Chrome sync is
-          enabled.
+          (<code>chrome.storage</code>). If you turn on <strong>Save to cloud</strong>, they may
+          sync through your Google account. Uploaded background images stay on this device and are
+          not synced.
         </p>
 
         <h3>Data stored on your device</h3>
         <ul>
           <li>Bookmark column layout and widget configuration</li>
           <li>Theme, appearance, and general extension settings</li>
+          <li>Uploaded background images (this device only; not included in cloud sync)</li>
           <li>Cached weather responses (when the weather widget is enabled)</li>
         </ul>
 

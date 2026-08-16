@@ -26,6 +26,7 @@ function makeSettingsDeps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
     setLayoutDirect: vi.fn(),
     setOptionsDirect: vi.fn(),
     setOptionsLocalDirect: vi.fn(),
+    setSyncToCloud: vi.fn(),
     ...overrides,
   };
 }
@@ -39,7 +40,7 @@ describe('createSettingsModal integration', () => {
     document.body.innerHTML = '';
   });
 
-  it('opens, renders the default section, and closes with Escape', () => {
+  it('opens, renders the default section, and closes with Escape', async () => {
     const deps = makeSettingsDeps();
     const modal = createSettingsModal(deps);
     document.body.appendChild(modal.element);
@@ -56,6 +57,7 @@ describe('createSettingsModal integration', () => {
     expect(document.querySelector('.settings-modal__content')?.children.length).toBeGreaterThan(0);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await Promise.resolve();
 
     expect(modal.element.hidden).toBe(true);
     expect(deps.flushPendingSaves).toHaveBeenCalled();
@@ -76,7 +78,7 @@ describe('createSettingsModal integration', () => {
     expect(document.querySelector('.settings-modal__nav button.active')?.textContent).toBe('Appearance');
   });
 
-  it('closes from the close button', () => {
+  it('closes from the close button', async () => {
     const deps = makeSettingsDeps();
     const modal = createSettingsModal(deps);
     document.body.appendChild(modal.element);
@@ -84,6 +86,7 @@ describe('createSettingsModal integration', () => {
     expect(modal.element.hidden).toBe(false);
 
     document.querySelector<HTMLButtonElement>('.settings-modal__close')?.click();
+    await Promise.resolve();
     expect(modal.element.hidden).toBe(true);
   });
 });

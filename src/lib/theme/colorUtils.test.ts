@@ -8,6 +8,7 @@ import {
   readableTextColor,
   relativeLuminance,
   replaceRgbaColor,
+  resolveBackgroundImageUrl,
   resolveEffectiveTextColor,
   resolveTextColorTokens,
   clampTextOpacityPct,
@@ -47,6 +48,18 @@ describe('colorUtils', () => {
     expect(hasBackgroundImage({ imageUrl: '', imageOpacityPct: 100, size: 'cover', align: 'center' })).toBe(false);
     expect(hasBackgroundImage({ imageUrl: '  ', imageOpacityPct: 100, size: 'cover', align: 'center' })).toBe(false);
     expect(hasBackgroundImage({ imageUrl: 'https://x/y.png', imageOpacityPct: 100, size: 'cover', align: 'center' })).toBe(true);
+    expect(
+      hasBackgroundImage(
+        { imageUrl: '', imageOpacityPct: 100, size: 'cover', align: 'center' },
+        'data:image/png;base64,abc'
+      )
+    ).toBe(true);
+    expect(
+      resolveBackgroundImageUrl(
+        { imageUrl: 'https://example.com/bg.jpg', imageOpacityPct: 100, size: 'cover', align: 'center' },
+        'data:image/png;base64,abc'
+      )
+    ).toBe('data:image/png;base64,abc');
   });
 
   it('classifies light vs dark backgrounds', () => {

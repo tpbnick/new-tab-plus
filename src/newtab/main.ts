@@ -3,10 +3,7 @@ import {
   getOptionsSynced,
   isSelfStorageWrite,
   loadLayout,
-  migrateLayoutStorage,
-  readSyncBookmarkLayoutEnabled,
   setOptionsLocal,
-  setOptionsSynced,
 } from '../lib/storage/storage';
 import { attachNonSelectableLabels } from '../lib/ui/collapsible';
 import { hideUpdateBanner, initUpdateChecker, runUpdateCheck } from '../lib/updates/updateCheck';
@@ -33,6 +30,7 @@ import {
   setLayoutDirect,
   setOptionsDirect,
   setOptionsLocalDirect,
+  setSyncToCloud,
 } from './app/layoutPersistence';
 import {
   applyOptionsFromStorage,
@@ -55,33 +53,47 @@ applyExtensionPageIcon();
 
 const persistAndRender = () => persistLayoutAndRenderLayout();
 
+function settingsStorageArea(): 'sync' | 'local' {
+  return appState.optionsLocalState.syncToCloud ? 'sync' : 'local';
+}
+
+function hasPendingOptionsSave(): boolean {
+  return appState.saveOptionsTimer !== undefined;
+}
+
+function hasPendingOptionsLocalSave(): boolean {
+  return appState.saveOptionsLocalTimer !== undefined;
+}
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'sync' && changes.options) {
+  if (areaName === 'local' && changes.optionsLocal && !isSelfStorageWrite('local', 'optionsLocal')) {
+    if (hasPendingOptionsLocalSave()) return;
+    void applyOptionsFromStorage();
+    return;
+  }
+
+  const expectedArea = settingsStorageArea();
+  if (areaName !== expectedArea) return;
+
+  if (changes.options) {
+    if (hasPendingOptionsSave() || isSelfStorageWrite(expectedArea, 'options')) return;
     const previous = appState.optionsState;
     void applyOptionsFromStorage().then(() => {
-      if (isSelfStorageWrite('sync', 'options')) return;
-      if (previous.general.syncBookmarkLayout !== appState.optionsState.general.syncBookmarkLayout) {
-        appState.layoutDirty = false;
-        scheduleRender('full');
-        return;
-      }
+      if (isSelfStorageWrite(expectedArea, 'options')) return;
       handleRemoteOptionsChange(previous);
     });
     return;
   }
-  if (areaName === 'local' && changes.optionsLocal) {
-    void applyOptionsFromStorage();
-    return;
-  }
-  if (changes.layout && (areaName === 'sync' || areaName === 'local') && !isSelfStorageWrite(areaName, 'layout')) {
-    void readSyncBookmarkLayoutEnabled().then((syncLayout) => {
-      const activeArea = syncLayout ? 'sync' : 'local';
-      if (areaName !== activeArea) return;
-      void flushPendingSavesAsync(createWidgetRefreshFn(), { includeLayout: false }).then(() => {
-        appState.layoutDirty = false;
-        scheduleRender();
-      });
-    });
+
+  if (
+    (changes.layout || changes.folderState) &&
+    !isSelfStorageWrite(expectedArea, 'layout') &&
+    !isSelfStorageWrite(expectedArea, 'folderState')
+  ) {
+    if (appState.layoutDirty || appState.pendingWidgetSettingsSaves.size > 0) {
+      return;
+    }
+    scheduleRender();
   }
 });
 
@@ -136,28 +148,14 @@ const settingsDeps: SettingsDeps = {
   setLayoutDirect: (layout) => setLayoutDirect(layout, persistAndRender),
   setOptionsDirect: (options) => setOptionsDirect(options, handleRemoteOptionsChange),
   setOptionsLocalDirect,
-  flushPendingSaves: () => {
-    void flushPendingSavesAsync(createWidgetRefreshFn());
-  },
+  setSyncToCloud,
+  flushPendingSaves: () => flushPendingSavesAsync(createWidgetRefreshFn()),
   onCheckForUpdatesChange: (enabled) => {
     if (enabled) {
       void runUpdateCheck(updateCheckContext, { force: true });
       return;
     }
     hideUpdateBanner();
-  },
-  onSyncBookmarkLayoutChange: (enabled) => {
-    void (async () => {
-      try {
-        await migrateLayoutStorage(enabled, appState.layoutState);
-        appState.optionsState.general.syncBookmarkLayout = enabled;
-        await setOptionsSynced(appState.optionsState);
-        appState.layoutDirty = false;
-        scheduleRender('full');
-      } catch (err) {
-        console.error('[new-tab-plus] failed to change layout sync setting', err);
-      }
-    })();
   },
 };
 
@@ -199,8 +197,9 @@ if (appRoot) attachNonSelectableLabels(appRoot);
 
 void (async () => {
   try {
-    const [synced, local] = await Promise.all([getOptionsSynced(), getOptionsLocal()]);
-    const { layout } = await loadLayout(synced);
+    const local = await getOptionsLocal();
+    const synced = await getOptionsSynced();
+    const { layout } = await loadLayout();
     appState.layoutState = layout;
     appState.optionsState = synced;
     appState.optionsLocalState = local;

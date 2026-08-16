@@ -55,15 +55,25 @@ function formatCssParseError(err: unknown): string {
   return 'Invalid CSS syntax.';
 }
 
-/** Parse-check custom CSS before injecting it into the page. */
-export function validateCustomCss(css: string, doc: Document = document): CustomCssValidation {
-  const text = css.trim();
-  if (!text) return { ok: true };
-  if (isCommentsOnlyOrWhitespace(text)) return { ok: true };
+function validateWithConstructedStylesheet(css: string): CustomCssValidation | null {
+  const Sheet = globalThis.CSSStyleSheet;
+  if (typeof Sheet !== 'function' || typeof Sheet.prototype.replaceSync !== 'function') {
+    return null;
+  }
 
-  const braceError = checkBalancedBraces(text);
-  if (braceError) return { ok: false, message: braceError };
+  try {
+    const sheet = new Sheet();
+    sheet.replaceSync(css);
+    if (sheet.cssRules.length === 0) {
+      return { ok: false, message: 'CSS could not be parsed. Check for syntax errors.' };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: formatCssParseError(err) };
+  }
+}
 
+function validateWithStyleElement(css: string, doc: Document): CustomCssValidation {
   const styleEl = doc.createElement('style');
   styleEl.textContent = css;
   doc.head.appendChild(styleEl);
@@ -89,4 +99,16 @@ export function validateCustomCss(css: string, doc: Document = document): Custom
   } finally {
     styleEl.remove();
   }
+}
+
+/** Parse-check custom CSS before injecting it into the page. */
+export function validateCustomCss(css: string, doc: Document = document): CustomCssValidation {
+  const text = css.trim();
+  if (!text) return { ok: true };
+  if (isCommentsOnlyOrWhitespace(text)) return { ok: true };
+
+  const braceError = checkBalancedBraces(text);
+  if (braceError) return { ok: false, message: braceError };
+
+  return validateWithConstructedStylesheet(text) ?? validateWithStyleElement(text, doc);
 }

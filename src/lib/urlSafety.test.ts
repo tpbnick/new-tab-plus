@@ -22,6 +22,12 @@ describe('urlSafety', () => {
     expect(isSafeBackgroundUrl('data:image/png;base64,abc')).toBe(true);
   });
 
+  it('rejects non-raster data image URLs', () => {
+    expect(isSafeBackgroundUrl('data:image/svg+xml;base64,PHN2Zz4=')).toBe(false);
+    expect(isSafeBackgroundUrl('data:text/html,<h1>nope</h1>')).toBe(false);
+    expect(validateBackgroundImageUrl('data:image/svg+xml,<svg></svg>').ok).toBe(false);
+  });
+
   it('blocks chrome URLs for backgrounds', () => {
     expect(isSafeBackgroundUrl('chrome://theme/IDR_THEME_NTP_BACKGROUND')).toBe(false);
   });
@@ -30,5 +36,12 @@ describe('urlSafety', () => {
     expect(validateBackgroundImageUrl('')).toEqual({ ok: true });
     expect(validateBackgroundImageUrl('https://example.com/a.jpg')).toEqual({ ok: true });
     expect(validateBackgroundImageUrl('javascript:void(0)').ok).toBe(false);
+  });
+
+  it('rejects background URLs with control characters', () => {
+    expect(isSafeBackgroundUrl('https://example.com/a.jpg\n"), linear-gradient(red, blue)')).toBe(
+      false
+    );
+    expect(isSafeBackgroundUrl('https://example.com/a.jpg\r\nfoo')).toBe(false);
   });
 });

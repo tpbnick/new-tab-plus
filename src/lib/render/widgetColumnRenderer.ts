@@ -8,11 +8,9 @@ export interface WidgetColumnCallbacks {
 
 export interface WidgetColumnOptions {
   /** 'column' (default) renders the standard bordered column with a title
-   *  header, draggable/reorderable among other columns. 'inline' renders
-   *  just the widget body for widgets pinned outside the grid (e.g. clock
-   *  and weather in the top bar). Settings live in the settings sidebar. */
+   *  header. 'inline' renders just the widget body for widgets pinned
+   *  outside the grid (e.g. clock and weather in the top bar). */
   variant?: 'column' | 'inline';
-  lockColumns?: boolean;
 }
 
 export interface WidgetColumnResult {
@@ -30,7 +28,6 @@ export function renderWidgetColumn(
   wrapper.className = variant === 'inline' ? 'widget-inline' : 'column';
 
   if (variant === 'column') {
-    wrapper.dataset.dragKind = 'column';
     wrapper.dataset.columnId = meta.id;
   }
 
@@ -45,7 +42,6 @@ export function renderWidgetColumn(
     header.className = 'column__header';
     const title = document.createElement('h2');
     title.className = 'column__title';
-    title.draggable = !options.lockColumns;
     title.textContent = definition?.displayName ?? meta.widgetId;
     header.appendChild(title);
     wrapper.appendChild(header);

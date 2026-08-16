@@ -25,12 +25,13 @@ import {
   createSelectInput as selectInput,
   createTextInput as textInput,
 } from '../ui/formControls';
-import { validateBackgroundImageUrl } from '../urlSafety';
+import { isSafeBackgroundUrl, validateBackgroundImageUrl } from '../urlSafety';
 import { collapsibleSection } from './collapsibleSection';
 import type { SettingsDeps } from './deps';
 
 const FONT_SIZE_MIN_PX = 10;
 const FONT_SIZE_MAX_PX = 32;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function markThemeCustom(deps: SettingsDeps): void {
   saveCustomThemeSnapshot(deps.options.theme);
@@ -144,15 +145,18 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
       })
     )
   );
-  if (hasBackgroundImage(deps.options.background)) {
+  const hasImage = hasBackgroundImage(
+    deps.options.background,
+    deps.optionsLocal.uploadedBackgroundImage
+  );
+  if (hasImage) {
     const autoHelp = document.createElement('p');
     autoHelp.className = 'options-help';
     autoHelp.textContent =
       'Auto text color only applies when no background image is set. With an image, use Text color below.';
     container.appendChild(autoHelp);
   }
-  const autoTextActive =
-    deps.options.theme.autoTextColor && !hasBackgroundImage(deps.options.background);
+  const autoTextActive = deps.options.theme.autoTextColor && !hasImage;
   const textColorControl = colorInput(deps.options.theme.colors.text, (v) => {
     markThemeCustom(deps);
     deps.options.theme.colors.text = v;
@@ -351,14 +355,85 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
     urlError.textContent = '';
     urlInput.classList.remove('options-json--invalid');
     urlInput.removeAttribute('aria-invalid');
+    if (v.trim().startsWith('data:image/')) {
+      deps.optionsLocal.uploadedBackgroundImage = v.trim();
+      deps.options.background.imageUrl = '';
+      deps.saveOptionsLocal();
+      deps.saveOptions();
+      deps.refreshPanel();
+      return;
+    }
     deps.options.background.imageUrl = v;
+    if (v.trim() && deps.optionsLocal.uploadedBackgroundImage) {
+      deps.optionsLocal.uploadedBackgroundImage = '';
+      deps.saveOptionsLocal();
+    }
     deps.saveOptions();
     if (deps.options.theme.autoTextColor) deps.refreshPanel();
   });
 
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/png,image/jpeg,image/webp,image/gif';
+  fileInput.hidden = true;
+
+  const uploadBtn = document.createElement('button');
+  uploadBtn.type = 'button';
+  uploadBtn.textContent = 'Upload image';
+  uploadBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      urlError.textContent = 'Image must be 4 MB or smaller.';
+      urlError.classList.add('is-visible');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!isSafeBackgroundUrl(result)) {
+        urlError.textContent = 'File must be a raster image (PNG, JPEG, WebP, or GIF).';
+        urlError.classList.add('is-visible');
+        return;
+      }
+      urlError.classList.remove('is-visible');
+      urlError.textContent = '';
+      deps.optionsLocal.uploadedBackgroundImage = result;
+      deps.options.background.imageUrl = '';
+      deps.saveOptionsLocal();
+      deps.saveOptions();
+      deps.refreshPanel();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const uploadActions = document.createElement('div');
+  uploadActions.className = 'options-actions';
+  uploadActions.appendChild(uploadBtn);
+  if (deps.optionsLocal.uploadedBackgroundImage) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = 'Remove uploaded image';
+    removeBtn.addEventListener('click', () => {
+      deps.optionsLocal.uploadedBackgroundImage = '';
+      deps.saveOptionsLocal();
+      deps.refreshPanel();
+    });
+    uploadActions.appendChild(removeBtn);
+  }
+
+  const uploadHelp = document.createElement('p');
+  uploadHelp.className = 'options-help';
+  uploadHelp.textContent =
+    'Uploaded images stay on this device and are not included when you save to cloud.';
+
   container.appendChild(row('Image URL', urlInput));
   container.appendChild(urlError);
-  if (hasBackgroundImage(deps.options.background)) {
+  container.append(uploadActions, uploadHelp);
+  if (hasBackgroundImage(deps.options.background, deps.optionsLocal.uploadedBackgroundImage)) {
     container.appendChild(
       rangeRow(
         'Image opacity',

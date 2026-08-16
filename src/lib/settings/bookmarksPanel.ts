@@ -138,18 +138,6 @@ export function renderBookmarksPanel(container: HTMLElement, deps: SettingsDeps)
         )
       );
 
-      body.appendChild(
-        row(
-          'Sync layout across devices',
-          checkbox(deps.options.general.syncBookmarkLayout, (v) => {
-            deps.onSyncBookmarkLayoutChange?.(v);
-          }),
-          {
-            help: 'When enabled, layout is shared across signed-in devices via Chrome Sync. Turn off to keep layout on this device only.',
-          }
-        )
-      );
-
       const resetActions = document.createElement('div');
       resetActions.className = 'options-actions options-actions--end';
 

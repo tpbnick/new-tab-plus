@@ -4,14 +4,24 @@ import {
   getOptionsLocal,
   getOptionsSynced,
   loadLayout,
-  migrateLayoutStorage,
   optionsAffectLayout,
+  optionsForCloud,
   optionsGridInteractionsChanged,
   optionsOnlyGridInteractionsChanged,
+  resetStorageStateForTests,
   setLayout,
+  setOptionsLocal,
   setOptionsSynced,
 } from './storage';
-import { createDefaultLayoutState, createDefaultOptionsState, mergeOptionsState, SCHEMA_VERSION, type OptionsState, type TopBarItemId } from './schema';
+import {
+  createDefaultLayoutState,
+  createDefaultOptionsLocalState,
+  createDefaultOptionsState,
+  mergeOptionsState,
+  SCHEMA_VERSION,
+  type OptionsState,
+  type TopBarItemId,
+} from './schema';
 
 function makeStorageArea() {
   const data: Record<string, unknown> = {};
@@ -19,7 +29,11 @@ function makeStorageArea() {
     async get(key: string | string[] | null) {
       if (key === null) return { ...data };
       if (Array.isArray(key)) {
-        return Object.fromEntries(key.filter((k) => k in data).map((k) => [k, data[k]]));
+        const out: Record<string, unknown> = {};
+        for (const k of key) {
+          if (k in data) out[k] = data[k];
+        }
+        return out;
       }
       return key in data ? { [key]: data[key] } : {};
     },
@@ -35,6 +49,7 @@ function mockStorageData(area: 'sync' | 'local'): Record<string, unknown> {
 }
 
 beforeEach(() => {
+  resetStorageStateForTests();
   vi.stubGlobal('chrome', {
     storage: {
       sync: makeStorageArea(),
@@ -75,47 +90,32 @@ describe('storage', () => {
     expect(reloaded).toEqual(layout);
   });
 
-  it('stores layout locally when sync bookmark layout is disabled', async () => {
-    const options = createDefaultOptionsState();
-    options.general.syncBookmarkLayout = false;
-    await setOptionsSynced(options);
-
+  it('stores layout locally when save-to-cloud is off', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: false });
     const layout = createDefaultLayoutState();
     layout.folderState = { '10': { collapsed: true } };
 
-    await setLayout(layout, options);
+    await setLayout(layout);
     expect(mockStorageData('sync').layout).toBeUndefined();
     expect(mockStorageData('local').layout).toBeDefined();
 
-    const reloaded = await getLayout(options);
+    const reloaded = await getLayout();
     expect(reloaded.folderState).toEqual({ '10': { collapsed: true } });
   });
 
-  it('copies layout to local storage when toggling sync off', async () => {
-    const layout = createDefaultLayoutState();
-    layout.folderState = { '99': { collapsed: true } };
-    await setLayout(layout);
-
-    await migrateLayoutStorage(false, layout);
-
-    const options = createDefaultOptionsState();
-    options.general.syncBookmarkLayout = false;
-    const localLayout = await getLayout(options);
-    expect(localLayout.folderState).toEqual({ '99': { collapsed: true } });
-  });
-
-  it('reports hadStoredLayout when layout exists in sync storage', async () => {
+  it('reports hadStoredLayout when layout exists in local storage', async () => {
     const layout = createDefaultLayoutState();
     layout.folderState = { '1': { collapsed: true } };
     await setLayout(layout);
 
     const loaded = await loadLayout();
     expect(loaded.hadStoredLayout).toBe(true);
-    expect(loaded.source).toBe('sync');
+    expect(loaded.source).toBe('local');
     expect(loaded.layout.folderState).toEqual({ '1': { collapsed: true } });
   });
 
-  it('falls back from empty sync to local layout when sync is enabled', async () => {
+  it('falls back from empty sync to local layout when save-to-cloud is on', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
     const layout = createDefaultLayoutState();
     layout.folderState = { '2': { collapsed: true } };
     await chrome.storage.local.set({ layout });
@@ -124,6 +124,14 @@ describe('storage', () => {
     expect(loaded.hadStoredLayout).toBe(true);
     expect(loaded.layout.folderState).toEqual({ '2': { collapsed: true } });
     expect(mockStorageData('sync').layout).toBeDefined();
+  });
+
+  it('keeps save-to-cloud off when an earlier syncBookmarkLayout toggle was disabled', async () => {
+    await chrome.storage.sync.set({
+      options: { schemaVersion: SCHEMA_VERSION, general: { syncBookmarkLayout: false } },
+    });
+    const local = await getOptionsLocal();
+    expect(local.syncToCloud).toBe(false);
   });
 
   it('returns default options state when nothing is stored', async () => {
@@ -157,6 +165,93 @@ describe('storage', () => {
     const local = await getOptionsLocal();
     expect(local.customCss).toBe('');
     expect(local.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(local.syncToCloud).toBe(false);
+    expect(local.uploadedBackgroundImage).toBe('');
+  });
+
+  it('keeps save-to-cloud off for new installs', async () => {
+    const local = await getOptionsLocal();
+    expect(local.syncToCloud).toBe(false);
+    await setLayout(createDefaultLayoutState());
+    expect(mockStorageData('local').layout).toBeDefined();
+    expect(mockStorageData('sync').layout).toBeUndefined();
+  });
+
+  it('enables save-to-cloud when existing sync data is present', async () => {
+    await chrome.storage.sync.set({ options: { schemaVersion: SCHEMA_VERSION } });
+    const local = await getOptionsLocal();
+    expect(local.syncToCloud).toBe(true);
+  });
+
+  it('returns the sanitized layout from setLayout', async () => {
+    const layout = createDefaultLayoutState();
+    const saved = await setLayout(layout);
+    expect(saved.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(saved.columns).toEqual(layout.columns);
+  });
+
+  it('strips data: background URLs from cloud options', () => {
+    const options = createDefaultOptionsState();
+    options.background.imageUrl = 'data:image/png;base64,abc';
+    expect(optionsForCloud(options).background.imageUrl).toBe('');
+    options.background.imageUrl = 'https://example.com/bg.jpg';
+    expect(optionsForCloud(options).background.imageUrl).toBe('https://example.com/bg.jpg');
+  });
+
+  it('writes layout to sync after save-to-cloud is enabled', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
+    const layout = createDefaultLayoutState();
+    await setLayout(layout);
+    const stored = mockStorageData('sync');
+    expect(stored.layout).toEqual({ schemaVersion: layout.schemaVersion, columns: layout.columns });
+    expect(stored.folderState).toEqual(layout.folderState);
+  });
+
+  it('reads a legacy combined layout that still embeds folderState', async () => {
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '10': { collapsed: true } };
+    await chrome.storage.local.set({ layout });
+    const reloaded = await getLayout();
+    expect(reloaded.folderState).toEqual({ '10': { collapsed: true } });
+  });
+
+  it('skips unchanged options writes after the last successful persist', async () => {
+    const options = await getOptionsSynced();
+    const local = mockStorageData('local');
+    delete local.options;
+    await setOptionsSynced(options);
+    expect(local.options).toBeUndefined();
+
+    const localOptions = await getOptionsLocal();
+    delete local.optionsLocal;
+    await setOptionsLocal(localOptions);
+    expect(local.optionsLocal).toBeUndefined();
+  });
+
+  it('writes full options locally and a stripped copy to sync when cloud is on', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
+    const options = createDefaultOptionsState();
+    options.background.imageUrl = 'data:image/png;base64,abc';
+    await setOptionsSynced(options);
+    const local = mockStorageData('local');
+    const sync = mockStorageData('sync');
+    expect((local.options as OptionsState).background.imageUrl).toBe('data:image/png;base64,abc');
+    expect((sync.options as OptionsState).background.imageUrl).toBe('');
+  });
+
+  it('rejects oversized chrome sync layout writes', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
+    const layout = createDefaultLayoutState();
+    for (let i = 0; i < 400; i++) {
+      layout.columns.push({
+        id: `grid:${i}`,
+        type: 'bookmarkGrid',
+        order: i,
+        enabled: true,
+        stack: [`folder-${i}-aaaaaaaaaaaaaaaa`],
+      });
+    }
+    await expect(setLayout(layout)).rejects.toThrow(/Chrome sync item "layout"/);
   });
 });
 

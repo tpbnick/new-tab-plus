@@ -62,22 +62,22 @@ export function refreshWidgetUiAfterSettingsSave(
 
   const slot = appState.gridWidgetSlots.get(meta.instanceId);
   if (slot) {
-    slot.instance.destroy();
-    appState.gridWidgetSlots.delete(meta.instanceId);
-    scheduleRender('bookmarks');
+    void (slot.instance.refresh?.() ?? slot.instance.render());
+    return;
   }
+  scheduleRender('bookmarks');
 }
 
 async function persistPendingWidgetSettings(
   refreshFn: (widgetId: string) => void
 ): Promise<void> {
   const widgetIds = [...appState.pendingWidgetSettingsSaves];
-  appState.pendingWidgetSettingsSaves.clear();
   if (widgetIds.length === 0) return;
 
   try {
     await persistLayout();
     for (const widgetId of widgetIds) {
+      appState.pendingWidgetSettingsSaves.delete(widgetId);
       refreshFn(widgetId);
     }
   } catch (err) {
@@ -104,6 +104,7 @@ export async function handleWidgetSettingsSaved(
 
   try {
     await persistLayout();
+    appState.pendingWidgetSettingsSaves.delete(meta.widgetId);
 
     if (isTopBarWidget(meta.widgetId)) {
       renderTopBar();
@@ -112,9 +113,7 @@ export async function handleWidgetSettingsSaved(
 
     const slot = appState.gridWidgetSlots.get(instanceId);
     if (slot) {
-      slot.instance.destroy();
-      appState.gridWidgetSlots.delete(instanceId);
-      scheduleRender('bookmarks');
+      void (slot.instance.refresh?.() ?? slot.instance.render());
       return true;
     }
 

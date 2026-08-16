@@ -56,7 +56,9 @@ function expandLocationAlias(token: string): string[] {
 
 function locationFieldMatchesToken(field: string, token: string): boolean {
   const normalizedField = normalizeLocationToken(field);
+  if (!normalizedField) return false;
   for (const alias of expandLocationAlias(token)) {
+    if (!alias) continue;
     if (normalizedField === alias || normalizedField.includes(alias) || alias.includes(normalizedField)) {
       return true;
     }

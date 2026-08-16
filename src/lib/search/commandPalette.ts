@@ -21,6 +21,8 @@ type ResultItem =
 
 function isPrintableKey(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  // "?" is the settings shortcut — leave it for globalShortcuts.
+  if (event.key === '?') return false;
   return event.key.length === 1;
 }
 
