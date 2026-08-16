@@ -98,8 +98,6 @@ function destroyRemovedWidgets(
   }
 }
 
-const COLUMNS_LOCKED_ATTR = 'data-columns-locked';
-
 export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): RefreshBookmarksGridResult {
   const {
     bookmarksGrid,
@@ -114,11 +112,9 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
   const existingColumns = indexExistingColumns(bookmarksGrid);
   const nextWidgetSlots = new Map<string, GridWidgetSlot>();
   const reusedElements = new Set<HTMLElement>();
-  const fragment = document.createDocumentFragment();
+  const nextElements: HTMLElement[] = [];
   let gridHasContent = false;
   let gridDomChanged = false;
-
-  const columnsLocked = linkOptions.lockColumns ? '1' : '0';
 
   for (const meta of gridColumnMeta) {
     if (meta.type === 'bookmarkGrid') {
@@ -128,12 +124,12 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
       const signature = bookmarkColumnSignature(vm, linkOptions);
       const existing = existingColumns.get(meta.id);
       if (existing?.getAttribute(RENDER_SIG_ATTR) === signature) {
-        fragment.appendChild(existing);
+        nextElements.push(existing);
         reusedElements.add(existing);
       } else {
         const column = renderBookmarkColumn(vm, linkOptions);
         column.setAttribute(RENDER_SIG_ATTR, signature);
-        fragment.appendChild(column);
+        nextElements.push(column);
         gridDomChanged = true;
       }
       gridHasContent = true;
@@ -145,12 +141,11 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
     if (existingWidget) {
       const settingsChanged =
         existingWidget.element.getAttribute(WIDGET_SETTINGS_SIG_ATTR) !== settingsSig;
-      const lockChanged = existingWidget.element.getAttribute(COLUMNS_LOCKED_ATTR) !== columnsLocked;
-      if (settingsChanged || lockChanged) {
+      if (settingsChanged) {
         existingWidget.instance.destroy();
         gridDomChanged = true;
       } else {
-        fragment.appendChild(existingWidget.element);
+        nextElements.push(existingWidget.element);
         reusedElements.add(existingWidget.element);
         nextWidgetSlots.set(meta.instanceId, existingWidget);
         gridHasContent = true;
@@ -158,12 +153,9 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
       }
     }
 
-    const { element, instance } = renderWidgetColumn(meta, widgetCallbacks, {
-      lockColumns: linkOptions.lockColumns,
-    });
+    const { element, instance } = renderWidgetColumn(meta, widgetCallbacks);
     element.setAttribute(WIDGET_SETTINGS_SIG_ATTR, settingsSig);
-    element.setAttribute(COLUMNS_LOCKED_ATTR, columnsLocked);
-    fragment.appendChild(element);
+    nextElements.push(element);
     if (instance) {
       nextWidgetSlots.set(meta.instanceId, {
         instanceId: meta.instanceId,
@@ -185,10 +177,23 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
 
   destroyRemovedWidgets(widgetSlots, nextWidgetSlots);
 
-  bookmarksGrid.replaceChildren(fragment);
   if (!gridHasContent) {
-    bookmarksGrid.appendChild(renderEmpty());
-    gridDomChanged = true;
+    const emptyAlreadyShown =
+      bookmarksGrid.childElementCount === 1 &&
+      bookmarksGrid.firstElementChild instanceof HTMLElement &&
+      bookmarksGrid.firstElementChild.classList.contains('bookmarks-grid-empty');
+    if (!emptyAlreadyShown) {
+      bookmarksGrid.replaceChildren(renderEmpty());
+      return { widgetSlots: nextWidgetSlots, gridDomChanged: true };
+    }
+    return { widgetSlots: nextWidgetSlots, gridDomChanged };
+  }
+
+  const alreadyInPlace =
+    bookmarksGrid.childElementCount === nextElements.length &&
+    nextElements.every((el, index) => bookmarksGrid.children[index] === el);
+  if (!alreadyInPlace) {
+    bookmarksGrid.replaceChildren(...nextElements);
   }
 
   return { widgetSlots: nextWidgetSlots, gridDomChanged };

@@ -1,6 +1,11 @@
 import { openWebSearch, type SearchEngineId } from './searchEngine';
 
-export function renderSearchBar(getSearchEngine: () => SearchEngineId): HTMLElement {
+export interface SearchBarHandle {
+  element: HTMLElement;
+  destroy(): void;
+}
+
+export function renderSearchBar(getSearchEngine: () => SearchEngineId): SearchBarHandle {
   const wrap = document.createElement('div');
   wrap.className = 'search-bar-wrap';
 
@@ -27,15 +32,12 @@ export function renderSearchBar(getSearchEngine: () => SearchEngineId): HTMLElem
   helpBtn.className = 'search-bar__help';
   helpBtn.textContent = '?';
   helpBtn.setAttribute('aria-label', 'Search tips');
-  helpBtn.setAttribute('aria-expanded', 'false');
-  helpBtn.setAttribute('aria-controls', 'search-bar-help-popover');
 
   const popover = document.createElement('div');
   popover.id = 'search-bar-help-popover';
   popover.className = 'search-bar__help-popover';
   popover.hidden = true;
-  popover.setAttribute('role', 'dialog');
-  popover.setAttribute('aria-label', 'Search tips');
+  popover.setAttribute('role', 'tooltip');
 
   const helpText = document.createElement('p');
   helpText.className = 'search-bar__help-text';
@@ -48,7 +50,7 @@ export function renderSearchBar(getSearchEngine: () => SearchEngineId): HTMLElem
 
   const closeHelp = (): void => {
     popover.hidden = true;
-    helpBtn.setAttribute('aria-expanded', 'false');
+    helpBtn.removeAttribute('aria-describedby');
     if (dismissClick) {
       document.removeEventListener('click', dismissClick);
       dismissClick = null;
@@ -61,7 +63,7 @@ export function renderSearchBar(getSearchEngine: () => SearchEngineId): HTMLElem
 
   const openHelp = (): void => {
     popover.hidden = false;
-    helpBtn.setAttribute('aria-expanded', 'true');
+    helpBtn.setAttribute('aria-describedby', popover.id);
     dismissClick = (event: MouseEvent) => {
       if (!field.contains(event.target as Node)) closeHelp();
     };
@@ -86,5 +88,5 @@ export function renderSearchBar(getSearchEngine: () => SearchEngineId): HTMLElem
   field.append(input, helpBtn, popover);
   form.appendChild(field);
   wrap.appendChild(form);
-  return wrap;
+  return { element: wrap, destroy: closeHelp };
 }

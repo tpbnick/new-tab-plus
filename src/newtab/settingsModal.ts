@@ -9,7 +9,7 @@ export interface SettingsModal {
   element: HTMLElement;
   toggle(): void;
   open(): void;
-  close(): void;
+  close(): void | Promise<void>;
 }
 
 function panelWidthEmToPx(modal: HTMLElement, em: number): number {
@@ -166,8 +166,12 @@ export function createSettingsModal(deps: SettingsDeps): SettingsModal {
     closeBtn.focus();
   }
 
-  function close(): void {
-    deps.flushPendingSaves();
+  async function close(): Promise<void> {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && host.contains(active)) {
+      active.blur();
+    }
+    await deps.flushPendingSaves();
     host.hidden = true;
     focusBeforeOpen?.focus();
     focusBeforeOpen = null;

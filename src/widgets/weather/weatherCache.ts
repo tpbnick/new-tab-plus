@@ -7,6 +7,7 @@ interface WeatherCacheEntry {
 }
 
 const CACHE_KEY_PREFIX = 'weatherCache:';
+const INDEX_KEY = 'weatherCacheKeys';
 const MAX_CACHE_ENTRIES = 12;
 const DEFAULT_TTL_MS = 20 * 60 * 1000;
 
@@ -16,6 +17,10 @@ function cacheKey(locationKey: string): string {
 
 function normalizeTtlMs(ttlMs: number): number {
   return Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : DEFAULT_TTL_MS;
+}
+
+function isCacheKey(key: string): boolean {
+  return key.startsWith(CACHE_KEY_PREFIX);
 }
 
 export async function getCachedForecast(locationKey: string): Promise<ForecastResult | null> {
@@ -28,26 +33,37 @@ export async function getCachedForecast(locationKey: string): Promise<ForecastRe
   return entry.data;
 }
 
-async function pruneWeatherCache(keepKey: string): Promise<void> {
+async function readIndex(): Promise<string[] | null> {
+  const result = await chrome.storage.local.get(INDEX_KEY);
+  const keys = result[INDEX_KEY];
+  if (!Array.isArray(keys)) return null;
+  return keys.filter((key): key is string => typeof key === 'string' && isCacheKey(key));
+}
+
+async function migrateIndex(): Promise<string[]> {
   const all = await chrome.storage.local.get(null);
-  const entries = Object.entries(all)
-    .filter(([key, value]) => key.startsWith(CACHE_KEY_PREFIX) && value && typeof value === 'object')
-    .map(([key, value]) => {
-      const entry = value as WeatherCacheEntry;
-      return { key, fetchedAt: entry.fetchedAt ?? 0 };
-    })
-    .sort((a, b) => b.fetchedAt - a.fetchedAt);
+  const keys = Object.entries(all)
+    .filter(([key, value]) => isCacheKey(key) && value && typeof value === 'object')
+    .map(([key, value]) => ({ key, fetchedAt: (value as WeatherCacheEntry).fetchedAt ?? 0 }))
+    .sort((a, b) => b.fetchedAt - a.fetchedAt)
+    .map((entry) => entry.key);
+  await chrome.storage.local.set({ [INDEX_KEY]: keys });
+  return keys;
+}
 
-  if (entries.length <= MAX_CACHE_ENTRIES) return;
+async function getIndex(): Promise<string[]> {
+  return (await readIndex()) ?? migrateIndex();
+}
 
-  const remove: Record<string, null> = {};
-  for (const entry of entries.slice(MAX_CACHE_ENTRIES)) {
-    if (entry.key === keepKey) continue;
-    remove[entry.key] = null;
+async function pruneWeatherCache(keepKey: string): Promise<void> {
+  const keys = await getIndex();
+  const next = [keepKey, ...keys.filter((key) => key !== keepKey)];
+  const keep = next.slice(0, MAX_CACHE_ENTRIES);
+  const remove = next.slice(MAX_CACHE_ENTRIES);
+  if (remove.length > 0) {
+    await chrome.storage.local.remove(remove);
   }
-  if (Object.keys(remove).length > 0) {
-    await chrome.storage.local.remove(Object.keys(remove));
-  }
+  await chrome.storage.local.set({ [INDEX_KEY]: keep });
 }
 
 export async function setCachedForecast(locationKey: string, data: ForecastResult, ttlMs: number): Promise<void> {

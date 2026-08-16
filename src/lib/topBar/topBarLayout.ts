@@ -6,9 +6,49 @@ export type { TopBarItemId };
 export const ALL_TOP_BAR_ITEM_IDS: TopBarItemId[] = ['search', ...BUILTIN_TOP_BAR_WIDGETS];
 
 export const SEARCH_MAX_WIDTH_PX = 1000;
+export const TOP_BAR_MAX_WIDTH_PX_MIN = 400;
+export const TOP_BAR_MAX_WIDTH_PX_MAX = 3840;
+export const TOP_BAR_WIDGET_HEIGHT_PX_MIN = 24;
+export const TOP_BAR_WIDGET_HEIGHT_PX_MAX = 200;
+export const TOP_BAR_WIDGET_SCALE_MIN = 0.5;
+export const TOP_BAR_WIDGET_SCALE_MAX = 3;
+export const TOP_BAR_GAP_PX_MIN = 0;
+export const TOP_BAR_GAP_PX_MAX = 120;
+
+function clampFinite(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
 
 export function clampSearchMaxWidthPx(value: number): number {
   return Math.min(SEARCH_MAX_WIDTH_PX, Math.max(200, Math.round(value)));
+}
+
+export function clampTopBarMaxWidthPx(value: number): number {
+  return Math.round(clampFinite(value, TOP_BAR_MAX_WIDTH_PX_MIN, TOP_BAR_MAX_WIDTH_PX_MAX, 720));
+}
+
+export function clampTopBarWidgetHeightPx(value: number): number {
+  return Math.round(clampFinite(value, TOP_BAR_WIDGET_HEIGHT_PX_MIN, TOP_BAR_WIDGET_HEIGHT_PX_MAX, 36));
+}
+
+export function clampTopBarWidgetScale(value: number): number {
+  return clampFinite(value, TOP_BAR_WIDGET_SCALE_MIN, TOP_BAR_WIDGET_SCALE_MAX, 1);
+}
+
+export function clampTopBarGapPx(value: number): number {
+  return Math.round(clampFinite(value, TOP_BAR_GAP_PX_MIN, TOP_BAR_GAP_PX_MAX, 20));
+}
+
+export function clampTopBarOptions(topBar: OptionsState['topBar']): OptionsState['topBar'] {
+  return {
+    ...topBar,
+    searchMaxWidthPx: clampSearchMaxWidthPx(topBar.searchMaxWidthPx),
+    maxWidthPx: clampTopBarMaxWidthPx(topBar.maxWidthPx),
+    widgetHeightPx: clampTopBarWidgetHeightPx(topBar.widgetHeightPx),
+    widgetScale: clampTopBarWidgetScale(topBar.widgetScale),
+    gapPx: clampTopBarGapPx(topBar.gapPx),
+  };
 }
 
 export const TOP_BAR_ITEM_LABELS: Record<TopBarItemId, string> = {
@@ -62,16 +102,17 @@ export function moveTopBarItem(
 }
 
 export function applyTopBar(topBar: OptionsState['topBar'], root: HTMLElement = document.documentElement): void {
-  if (topBar.fullWidth) {
+  const clamped = clampTopBarOptions(topBar);
+  if (clamped.fullWidth) {
     root.dataset.topBarFullWidth = 'true';
     root.style.removeProperty('--ntp-top-bar-max-width');
   } else {
     delete root.dataset.topBarFullWidth;
-    root.style.setProperty('--ntp-top-bar-max-width', `${topBar.maxWidthPx}px`);
+    root.style.setProperty('--ntp-top-bar-max-width', `${clamped.maxWidthPx}px`);
   }
 
-  root.style.setProperty('--ntp-top-bar-gap', `${topBar.gapPx}px`);
-  root.style.setProperty('--ntp-search-max-width', `${clampSearchMaxWidthPx(topBar.searchMaxWidthPx)}px`);
-  root.style.setProperty('--ntp-top-bar-widget-height', `${topBar.widgetHeightPx}px`);
-  root.style.setProperty('--ntp-top-bar-widget-scale', String(topBar.widgetScale));
+  root.style.setProperty('--ntp-top-bar-gap', `${clamped.gapPx}px`);
+  root.style.setProperty('--ntp-search-max-width', `${clamped.searchMaxWidthPx}px`);
+  root.style.setProperty('--ntp-top-bar-widget-height', `${clamped.widgetHeightPx}px`);
+  root.style.setProperty('--ntp-top-bar-widget-scale', String(clamped.widgetScale));
 }

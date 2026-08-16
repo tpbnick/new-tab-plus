@@ -10,17 +10,26 @@ import {
 } from './schema';
 import { runMigrations } from './migrations';
 import { coerceLayoutState, isLayoutNormalized, normalizeLayoutColumns } from './layoutNormalize';
-import { clampSearchMaxWidthPx, normalizeTopBarItemOrder } from '../topBar/topBarLayout';
+import { clampTopBarOptions, normalizeTopBarItemOrder } from '../topBar/topBarLayout';
+import { showSaveError } from '../ui/saveErrorBanner';
 
 const KEYS = {
   layout: 'layout',
+  folderState: 'folderState',
   options: 'options',
   optionsLocal: 'optionsLocal',
 } as const;
 
+/** Chrome sync QUOTA_BYTES_PER_ITEM is 8192; leave a small margin for the key name. */
+export const SYNC_ITEM_MAX_BYTES = 8000;
+
 /** Recent writes from this tab — onChanged can arrive after set() resolves. */
 const recentSelfWrites = new Map<string, number>();
 const SELF_WRITE_TTL_MS = 750;
+
+let resolvedSyncToCloud: boolean | undefined;
+let lastOptionsPersistKey = '';
+let lastOptionsLocalPersistJson = '';
 
 function storageKey(areaName: 'sync' | 'local', key: string): string {
   return `${areaName}:${key}`;
@@ -37,16 +46,70 @@ export function isSelfStorageWrite(areaName: 'sync' | 'local', key: string): boo
   return true;
 }
 
+/** Test-only: clear area preference and self-write marks. */
+export function resetStorageStateForTests(): void {
+  resolvedSyncToCloud = undefined;
+  lastOptionsPersistKey = '';
+  lastOptionsLocalPersistJson = '';
+  recentSelfWrites.clear();
+}
+
+export function storageValueByteLength(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+function assertSyncItemFits(key: string, value: unknown): void {
+  const bytes = storageValueByteLength(value);
+  if (bytes > SYNC_ITEM_MAX_BYTES) {
+    throw new Error(
+      `Chrome sync item "${key}" is ${bytes} bytes (limit ${SYNC_ITEM_MAX_BYTES}).`
+    );
+  }
+}
+
 async function writeTo<T>(area: chrome.storage.StorageArea, key: string, value: T): Promise<void> {
   const areaName = area === chrome.storage.sync ? 'sync' : 'local';
   recentSelfWrites.set(storageKey(areaName, key), Date.now());
   await area.set({ [key]: value });
 }
 
-function loadLayoutFromRaw(raw: unknown): LayoutState {
+export function migrateAndNormalizeLayout(raw: unknown): LayoutState {
   const coerced = coerceLayoutState(raw);
   const migrated = runMigrations(coerced, SCHEMA_VERSION) as LayoutState;
   return normalizeLayoutColumns(coerceLayoutState(migrated));
+}
+
+function layoutRecord(state: LayoutState): Pick<LayoutState, 'schemaVersion' | 'columns'> {
+  return { schemaVersion: state.schemaVersion, columns: state.columns };
+}
+
+function assembleLayoutRaw(layoutRaw: unknown, folderRaw: unknown): unknown {
+  if (layoutRaw === undefined) return undefined;
+  if (!layoutRaw || typeof layoutRaw !== 'object') return layoutRaw;
+  const embedded = (layoutRaw as Partial<LayoutState>).folderState;
+  const folderState =
+    folderRaw && typeof folderRaw === 'object' && !Array.isArray(folderRaw) ? folderRaw : embedded;
+  return { ...(layoutRaw as object), folderState: folderState ?? {} };
+}
+
+async function readLayoutRaw(area: chrome.storage.StorageArea): Promise<unknown> {
+  const result = await area.get([KEYS.layout, KEYS.folderState]);
+  return assembleLayoutRaw(result[KEYS.layout], result[KEYS.folderState]);
+}
+
+async function writeLayout(area: chrome.storage.StorageArea, sanitized: LayoutState): Promise<void> {
+  const areaName = area === chrome.storage.sync ? 'sync' : 'local';
+  const record = layoutRecord(sanitized);
+  if (areaName === 'sync') {
+    assertSyncItemFits(KEYS.layout, record);
+    assertSyncItemFits(KEYS.folderState, sanitized.folderState);
+  }
+  recentSelfWrites.set(storageKey(areaName, KEYS.layout), Date.now());
+  recentSelfWrites.set(storageKey(areaName, KEYS.folderState), Date.now());
+  await area.set({
+    [KEYS.layout]: record,
+    [KEYS.folderState]: sanitized.folderState,
+  });
 }
 
 function layoutNeedsPersist(raw: unknown, sanitized: LayoutState): boolean {
@@ -56,26 +119,49 @@ function layoutNeedsPersist(raw: unknown, sanitized: LayoutState): boolean {
   return !isLayoutNormalized(sanitized);
 }
 
-export function readSyncBookmarkLayoutEnabledFromOptions(options: OptionsState): boolean {
-  return options.general.syncBookmarkLayout !== false;
+async function detectLegacyCloudData(): Promise<boolean> {
+  const sync = await chrome.storage.sync.get([KEYS.layout, KEYS.options]);
+  if (sync[KEYS.options] && typeof sync[KEYS.options] === 'object') {
+    const merged = mergeOptionsState(sync[KEYS.options] as Partial<OptionsState>);
+    if (merged.general.syncBookmarkLayout === false) return false;
+  }
+  return sync[KEYS.layout] !== undefined || sync[KEYS.options] !== undefined;
 }
 
-export async function readSyncBookmarkLayoutEnabled(): Promise<boolean> {
-  const result = await chrome.storage.sync.get(KEYS.options);
-  const raw = result[KEYS.options];
-  if (!raw || typeof raw !== 'object') return true;
-  return readSyncBookmarkLayoutEnabledFromOptions(mergeOptionsState(raw as Partial<OptionsState>));
+async function ensureSyncToCloud(): Promise<boolean> {
+  if (typeof resolvedSyncToCloud === 'boolean') return resolvedSyncToCloud;
+
+  const result = await chrome.storage.local.get(KEYS.optionsLocal);
+  const raw = result[KEYS.optionsLocal] as Partial<OptionsLocalState> | undefined;
+  if (typeof raw?.syncToCloud === 'boolean') {
+    resolvedSyncToCloud = raw.syncToCloud;
+    return resolvedSyncToCloud;
+  }
+
+  resolvedSyncToCloud = await detectLegacyCloudData();
+  return resolvedSyncToCloud;
 }
 
-function layoutStorageArea(syncEnabled: boolean): chrome.storage.StorageArea {
-  return syncEnabled ? chrome.storage.sync : chrome.storage.local;
+/** Drop data: background URLs — they are too large for Chrome sync and stay local. */
+export function optionsForCloud(state: OptionsState): OptionsState {
+  const url = state.background.imageUrl.trim();
+  if (url.startsWith('data:')) {
+    return { ...state, background: { ...state.background, imageUrl: '' } };
+  }
+  return state;
 }
 
-async function readLayoutFromArea(area: chrome.storage.StorageArea): Promise<LayoutState | undefined> {
-  const result = await area.get(KEYS.layout);
-  const raw = result[KEYS.layout];
-  if (raw === undefined) return undefined;
-  return loadLayoutFromRaw(raw);
+function mergeCloudAndLocalOptions(cloudRaw: unknown, localRaw: unknown): OptionsState {
+  const primary = cloudRaw ?? localRaw;
+  if (primary === undefined) return createDefaultOptionsState();
+  const merged = normalizeOptions(mergeOptionsState(primary as Partial<OptionsState>));
+  if (localRaw && typeof localRaw === 'object') {
+    const localUrl = (localRaw as Partial<OptionsState>).background?.imageUrl ?? '';
+    if (localUrl.startsWith('data:') && !merged.background.imageUrl.startsWith('data:')) {
+      merged.background.imageUrl = localUrl;
+    }
+  }
+  return merged;
 }
 
 export type LayoutStorageSource = 'sync' | 'local' | 'default';
@@ -87,90 +173,111 @@ export interface LayoutLoadResult {
   hadStoredLayout: boolean;
 }
 
-export async function loadLayout(options?: OptionsState): Promise<LayoutLoadResult> {
-  const useSync = options
-    ? readSyncBookmarkLayoutEnabledFromOptions(options)
-    : await readSyncBookmarkLayoutEnabled();
-  const primaryArea = layoutStorageArea(useSync);
+export async function loadLayout(): Promise<LayoutLoadResult> {
+  const useSync = await ensureSyncToCloud();
+  const primary = useSync ? chrome.storage.sync : chrome.storage.local;
+  const fallback = useSync ? chrome.storage.local : chrome.storage.sync;
   const primarySource: LayoutStorageSource = useSync ? 'sync' : 'local';
-  const result = await primaryArea.get(KEYS.layout);
-  const raw = result[KEYS.layout];
-
-  if (raw !== undefined) {
-    const sanitized = loadLayoutFromRaw(raw);
-    if (layoutNeedsPersist(raw, sanitized)) {
-      void writeTo(primaryArea, KEYS.layout, sanitized);
+  let raw = await readLayoutRaw(primary);
+  if (raw === undefined) {
+    raw = await readLayoutRaw(fallback);
+    if (raw !== undefined) {
+      const sanitized = migrateAndNormalizeLayout(raw);
+      try {
+        await writeLayout(primary, sanitized);
+      } catch (err) {
+        console.error('[new-tab-plus] failed to copy layout into the active storage area', err);
+        showSaveError('Could not save layout. Check Chrome sync storage space.');
+      }
+      return { layout: sanitized, source: primarySource, hadStoredLayout: true };
     }
-    return { layout: sanitized, source: primarySource, hadStoredLayout: true };
+    return {
+      layout: createDefaultLayoutState(),
+      source: 'default',
+      hadStoredLayout: false,
+    };
   }
 
-  const fallbackArea = layoutStorageArea(!useSync);
-  const fallback = await readLayoutFromArea(fallbackArea);
-  if (fallback) {
-    void writeTo(primaryArea, KEYS.layout, fallback);
-    return { layout: fallback, source: primarySource, hadStoredLayout: true };
+  const sanitized = migrateAndNormalizeLayout(raw);
+  if (layoutNeedsPersist(raw, sanitized)) {
+    try {
+      await writeLayout(primary, sanitized);
+    } catch (err) {
+      console.error('[new-tab-plus] failed to persist migrated layout', err);
+      showSaveError('Could not save an upgraded layout. Check Chrome sync storage space.');
+    }
   }
-
-  return {
-    layout: createDefaultLayoutState(),
-    source: 'default',
-    hadStoredLayout: false,
-  };
+  return { layout: sanitized, source: primarySource, hadStoredLayout: true };
 }
 
-export async function getLayout(options?: OptionsState): Promise<LayoutState> {
-  const { layout } = await loadLayout(options);
+export async function getLayout(): Promise<LayoutState> {
+  const { layout } = await loadLayout();
   return layout;
 }
 
-export async function setLayout(state: LayoutState, options?: OptionsState): Promise<void> {
-  const useSync = options
-    ? readSyncBookmarkLayoutEnabledFromOptions(options)
-    : await readSyncBookmarkLayoutEnabled();
-  return writeTo(layoutStorageArea(useSync), KEYS.layout, loadLayoutFromRaw(state));
-}
-
-/** Copy the current layout into the storage area that will be used after toggling sync. */
-export async function migrateLayoutStorage(
-  enableSync: boolean,
-  currentLayout: LayoutState
-): Promise<void> {
-  const sanitized = loadLayoutFromRaw(currentLayout);
-  await writeTo(layoutStorageArea(enableSync), KEYS.layout, sanitized);
+export async function setLayout(state: LayoutState): Promise<LayoutState> {
+  const sanitized = migrateAndNormalizeLayout(state);
+  const useSync = await ensureSyncToCloud();
+  await writeLayout(useSync ? chrome.storage.sync : chrome.storage.local, sanitized);
+  return sanitized;
 }
 
 function normalizeOptions(state: OptionsState): OptionsState {
   return {
     ...state,
-    topBar: {
-      ...state.topBar,
-      searchMaxWidthPx: clampSearchMaxWidthPx(state.topBar.searchMaxWidthPx),
-    },
+    topBar: clampTopBarOptions(state.topBar),
   };
 }
 
+function optionsPersistKey(state: OptionsState, cloud: boolean): string {
+  return `${cloud ? '1' : '0'}:${JSON.stringify(state)}`;
+}
+
 export async function getOptionsSynced(): Promise<OptionsState> {
-  const result = await chrome.storage.sync.get(KEYS.options);
-  const raw = result[KEYS.options];
-  if (raw === undefined) {
-    return createDefaultOptionsState();
+  const useSync = await ensureSyncToCloud();
+  const localRaw = (await chrome.storage.local.get(KEYS.options))[KEYS.options];
+  let resolved: OptionsState;
+  if (!useSync) {
+    if (localRaw === undefined) {
+      const cloudRaw = (await chrome.storage.sync.get(KEYS.options))[KEYS.options];
+      if (cloudRaw === undefined) {
+        resolved = createDefaultOptionsState();
+      } else {
+        resolved = normalizeOptions(mergeOptionsState(cloudRaw as Partial<OptionsState>));
+      }
+    } else {
+      resolved = normalizeOptions(mergeOptionsState(localRaw as Partial<OptionsState>));
+    }
+  } else {
+    const cloudRaw = (await chrome.storage.sync.get(KEYS.options))[KEYS.options];
+    resolved = mergeCloudAndLocalOptions(cloudRaw, localRaw);
   }
-  return normalizeOptions(mergeOptionsState(raw as Partial<OptionsState>));
+  lastOptionsPersistKey = optionsPersistKey(resolved, useSync);
+  return resolved;
 }
 
 export async function setOptionsSynced(state: OptionsState): Promise<void> {
-  return writeTo(chrome.storage.sync, KEYS.options, normalizeOptions(state));
+  const normalized = normalizeOptions(state);
+  const useSync = await ensureSyncToCloud();
+  const persistKey = optionsPersistKey(normalized, useSync);
+  if (persistKey === lastOptionsPersistKey) return;
+  if (useSync) {
+    assertSyncItemFits(KEYS.options, optionsForCloud(normalized));
+  }
+  await writeTo(chrome.storage.local, KEYS.options, normalized);
+  if (useSync) {
+    await writeTo(chrome.storage.sync, KEYS.options, optionsForCloud(normalized));
+  }
+  lastOptionsPersistKey = persistKey;
 }
 
 export async function getOptionsLocal(): Promise<OptionsLocalState> {
   const result = await chrome.storage.local.get(KEYS.optionsLocal);
   const raw = result[KEYS.optionsLocal];
-  if (raw === undefined) {
-    return createDefaultOptionsLocalState();
-  }
   const defaults = createDefaultOptionsLocalState();
-  const partial = raw as Partial<OptionsLocalState>;
-  return {
+  const partial = (raw && typeof raw === 'object' ? raw : {}) as Partial<OptionsLocalState>;
+  const syncToCloud = await ensureSyncToCloud();
+  const resolved: OptionsLocalState = {
     ...defaults,
     ...partial,
     schemaVersion:
@@ -180,11 +287,26 @@ export async function getOptionsLocal(): Promise<OptionsLocalState> {
       typeof partial.dismissedUpdateVersion === 'string'
         ? partial.dismissedUpdateVersion
         : defaults.dismissedUpdateVersion,
+    syncToCloud,
+    uploadedBackgroundImage:
+      typeof partial.uploadedBackgroundImage === 'string'
+        ? partial.uploadedBackgroundImage
+        : defaults.uploadedBackgroundImage,
   };
+
+  if (typeof partial.syncToCloud !== 'boolean') {
+    void writeTo(chrome.storage.local, KEYS.optionsLocal, resolved);
+  }
+  lastOptionsLocalPersistJson = JSON.stringify(resolved);
+  return resolved;
 }
 
 export async function setOptionsLocal(state: OptionsLocalState): Promise<void> {
-  return writeTo(chrome.storage.local, KEYS.optionsLocal, state);
+  resolvedSyncToCloud = state.syncToCloud;
+  const json = JSON.stringify(state);
+  if (json === lastOptionsLocalPersistJson) return;
+  await writeTo(chrome.storage.local, KEYS.optionsLocal, state);
+  lastOptionsLocalPersistJson = json;
 }
 
 /** True when expand-on-hover and/or lock-columns changed. */
@@ -199,20 +321,6 @@ export function optionsGridInteractionsChanged(before: OptionsState, after: Opti
 export function optionsOnlyGridInteractionsChanged(before: OptionsState, after: OptionsState): boolean {
   if (optionsAffectLayout(before, after)) return false;
   return optionsGridInteractionsChanged(before, after);
-}
-
-/** @deprecated Use optionsOnlyGridInteractionsChanged — kept for call-site clarity where only hover matters. */
-export function optionsOnlyExpandHoverChanged(before: OptionsState, after: OptionsState): boolean {
-  if (before.general.expandCollapsedOnHover === after.general.expandCollapsedOnHover) return false;
-  return (
-    before.general.lockColumns === after.general.lockColumns &&
-    before.general.rememberOpenFolders === after.general.rememberOpenFolders &&
-    before.general.openLinksInSameTab === after.general.openLinksInSameTab &&
-    before.topBar.searchEnabled === after.topBar.searchEnabled &&
-    before.topBar.searchEngine === after.topBar.searchEngine &&
-    JSON.stringify(normalizeTopBarItemOrder(before.topBar.itemOrder)) ===
-      JSON.stringify(normalizeTopBarItemOrder(after.topBar.itemOrder))
-  );
 }
 
 /** True when synced options changes require rebuilding the page layout. */

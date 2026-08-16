@@ -59,5 +59,40 @@ describe('widgetLayout', () => {
     const weatherCols = deduped.filter((c) => c.type === 'widget' && c.widgetId === 'weather');
     expect(weatherCols).toHaveLength(1);
     expect(weatherCols[0]?.id).toBe('widget:weather-a');
+    expect(weatherCols[0] && weatherCols[0].type === 'widget' && weatherCols[0].settings).toEqual({
+      locationName: 'First',
+    });
+  });
+
+  it('merges settings from duplicate widget columns into the kept column', () => {
+    const layout = createDefaultLayoutState();
+    layout.columns.push(
+      {
+        id: 'widget:weather-a',
+        type: 'widget',
+        order: 50,
+        enabled: false,
+        widgetId: 'weather',
+        instanceId: 'a',
+        settings: { locationName: 'Kept' },
+      },
+      {
+        id: 'widget:weather-b',
+        type: 'widget',
+        order: 51,
+        enabled: true,
+        widgetId: 'weather',
+        instanceId: 'b',
+        settings: { tempUnit: 'fahrenheit', locationName: 'Dropped' },
+      }
+    );
+
+    const deduped = dedupeBuiltinWidgetColumns(layout.columns);
+    const weather = deduped.find((c) => c.type === 'widget' && c.widgetId === 'weather');
+    expect(weather).toMatchObject({
+      id: 'widget:weather-a',
+      enabled: true,
+      settings: { locationName: 'Kept', tempUnit: 'fahrenheit' },
+    });
   });
 });

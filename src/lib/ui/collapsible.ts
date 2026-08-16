@@ -48,7 +48,7 @@ function updateChevron(control: HTMLElement, collapsed: boolean): void {
   if (chev) chev.textContent = chevron(collapsed);
 }
 
-function setCollapsed(container: HTMLElement, collapsed: boolean): void {
+export function applyCollapsedState(container: HTMLElement, collapsed: boolean): void {
   container.classList.toggle(CLASS_COLLAPSED, collapsed);
   container.dataset.collapsed = collapsed ? 'true' : 'false';
   const control = container.querySelector<HTMLElement>('.folder-column-header, .folder-toggle');
@@ -93,7 +93,7 @@ function attachHeaderCollapsible(
 
     container.classList.remove(CLASS_HOVER_EXPANDED);
     const collapsed = !container.classList.contains(CLASS_COLLAPSED);
-    setCollapsed(container, collapsed);
+    applyCollapsedState(container, collapsed);
     options.onCollapsedChange(id, collapsed);
   };
 

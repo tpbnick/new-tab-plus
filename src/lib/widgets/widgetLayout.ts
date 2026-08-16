@@ -59,14 +59,19 @@ export function setBuiltinWidgetEnabled(
   return layout;
 }
 
-/** Keep at most one column entry per built-in widget id. */
+/** Keep at most one column entry per built-in widget id. Later duplicates fill missing settings. */
 export function dedupeBuiltinWidgetColumns(columns: LayoutState['columns']): LayoutState['columns'] {
-  const seenBuiltin = new Set<string>();
+  const kept = new Map<string, WidgetColumnMeta>();
   return columns.filter((col) => {
     if (col.type !== 'widget') return true;
     if (!BUILTIN_TOP_BAR_WIDGETS.includes(col.widgetId as BuiltinTopBarWidgetId)) return true;
-    if (seenBuiltin.has(col.widgetId)) return false;
-    seenBuiltin.add(col.widgetId);
-    return true;
+    const existing = kept.get(col.widgetId);
+    if (!existing) {
+      kept.set(col.widgetId, col);
+      return true;
+    }
+    existing.settings = { ...col.settings, ...existing.settings };
+    existing.enabled = existing.enabled || col.enabled;
+    return false;
   });
 }

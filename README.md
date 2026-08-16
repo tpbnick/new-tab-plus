@@ -21,11 +21,10 @@ Inspired by [Humble New Tab Page](https://github.com/ibillingsley/HumbleNewTabPa
 </p>
 
 <p align="center">
-  <img src="docs/images/new-tab-plus-1.png" alt="GitHub Dark theme" width="230">
   <img src="docs/images/new-tab-plus-2.png" alt="Monokai Dark theme" width="230">
   <img src="docs/images/new-tab-plus-3.png" alt="Hacker theme" width="230">
 </p>
-<p align="center"><em>GitHub Dark · Monokai Dark · Hacker</em></p>
+<p align="center"><em>GitHub Dark (above) · Monokai Dark · Hacker</em></p>
 
 <p align="center">
   <img src="docs/images/new-tab-plus-settings.png" alt="Settings panel" width="720">
@@ -57,6 +56,8 @@ npm run package # zip dist for release
 ```
 
 Weather data is fetched from [Open-Meteo](https://open-meteo.com/) when the weather widget is enabled (requires network access).
+
+Layout and settings stay on this device by default. Turn on **Settings → Advanced → Save to cloud** to sync them through your Google account. Uploaded background images stay on this device. Existing installs that already used Chrome sync keep cloud sync on. See the [user guide & privacy policy](https://tpbnick.github.io/new-tab-plus/) for details.
 
 ## Possible Upcoming Features
 - Calendar integration (Google, Apple)

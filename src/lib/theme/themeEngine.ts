@@ -3,7 +3,7 @@ import { isLightBackgroundColor, parseCssColor, resolveEffectiveTextColor, resol
 import { loadFontForFamily } from './fontLoader';
 import { applyLinkHoverOptions } from './linkHover';
 import { validateCustomCss } from './customCssValidate';
-import { isSafeBackgroundUrl } from '../urlSafety';
+import { safeBackgroundCssUrl } from '../urlSafety';
 
 export { validateCustomCss, type CustomCssValidation } from './customCssValidate';
 
@@ -85,8 +85,8 @@ export function applyBackground(
   overlayColor: string = '#15161e',
   root: HTMLElement = document.body
 ): void {
-  const imageUrl = background.imageUrl.trim();
-  if (!imageUrl || !isSafeBackgroundUrl(imageUrl)) {
+  const imageUrl = safeBackgroundCssUrl(background.imageUrl.trim());
+  if (!imageUrl) {
     root.style.backgroundImage = '';
     return;
   }
@@ -102,9 +102,12 @@ export function applyBackground(
 
 export function applyCustomCss(css: string, doc: Document = document): void {
   const validation = validateCustomCss(css);
-  if (!validation.ok) return;
-
   let styleEl = doc.getElementById(CUSTOM_CSS_STYLE_ID) as HTMLStyleElement | null;
+  if (!validation.ok || !css.trim()) {
+    styleEl?.remove();
+    return;
+  }
+
   if (!styleEl) {
     styleEl = doc.createElement('style');
     styleEl.id = CUSTOM_CSS_STYLE_ID;

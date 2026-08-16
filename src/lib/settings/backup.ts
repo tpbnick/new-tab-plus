@@ -1,4 +1,5 @@
 import { mergeOptionsState, SCHEMA_VERSION, type LayoutState, type OptionsLocalState, type OptionsState } from '../storage/schema';
+import { migrateAndNormalizeLayout } from '../storage/storage';
 import { sanitizeLayoutState } from '../storage/layoutNormalize';
 import type { SettingsDeps } from './deps';
 
@@ -21,6 +22,9 @@ export function exportSettingsJson(deps: SettingsDeps): string {
       optionsLocal: {
         schemaVersion: deps.optionsLocal.schemaVersion,
         customCss: deps.optionsLocal.customCss,
+        dismissedUpdateVersion: deps.optionsLocal.dismissedUpdateVersion,
+        syncToCloud: deps.optionsLocal.syncToCloud,
+        uploadedBackgroundImage: deps.optionsLocal.uploadedBackgroundImage,
       },
     },
     null,
@@ -65,7 +69,7 @@ export function parseSettingsBackupJson(
     return {
       ok: true,
       backup: {
-        layout: sanitizeLayoutState(rawLayout),
+        layout: migrateAndNormalizeLayout(rawLayout),
         options: mergeOptionsState(rawOptions as Partial<OptionsState>),
         optionsLocal: {
           schemaVersion: optionsLocalPartial.schemaVersion ?? SCHEMA_VERSION,
@@ -74,6 +78,11 @@ export function parseSettingsBackupJson(
           dismissedUpdateVersion:
             typeof optionsLocalPartial.dismissedUpdateVersion === 'string'
               ? optionsLocalPartial.dismissedUpdateVersion
+              : '',
+          syncToCloud: optionsLocalPartial.syncToCloud === true,
+          uploadedBackgroundImage:
+            typeof optionsLocalPartial.uploadedBackgroundImage === 'string'
+              ? optionsLocalPartial.uploadedBackgroundImage
               : '',
         },
       },
@@ -95,9 +104,9 @@ export function applySettingsBackupFromJson(deps: SettingsDeps, json: string): b
   );
   if (!ok) return false;
 
-  deps.setLayoutDirect(parsed.backup.layout);
-  deps.setOptionsDirect(parsed.backup.options);
   deps.setOptionsLocalDirect(parsed.backup.optionsLocal);
+  deps.setOptionsDirect(parsed.backup.options);
+  deps.setLayoutDirect(parsed.backup.layout);
   deps.rerenderPage();
   deps.refreshPanel();
   return true;

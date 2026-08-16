@@ -96,8 +96,18 @@ export function readableTextColor(background: string): string {
   return relativeLuminance(rgb) > 0.179 ? '#15161e' : '#e8e8f0';
 }
 
-export function hasBackgroundImage(background: OptionsState['background']): boolean {
-  return Boolean(background.imageUrl.trim());
+export function resolveBackgroundImageUrl(
+  background: OptionsState['background'],
+  uploadedImage = ''
+): string {
+  return uploadedImage.trim() || background.imageUrl.trim();
+}
+
+export function hasBackgroundImage(
+  background: OptionsState['background'],
+  uploadedImage = ''
+): boolean {
+  return Boolean(resolveBackgroundImageUrl(background, uploadedImage));
 }
 
 export function resolveEffectiveTextColor(

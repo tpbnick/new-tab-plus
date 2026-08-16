@@ -79,4 +79,12 @@ describe('attachCommandPalette integration', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }));
     expect(palette.isOpen()).toBe(false);
   });
+
+  it('does not open on ? so settings can use that shortcut', () => {
+    mountPalette();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    expect(palette.isOpen()).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', shiftKey: true, bubbles: true }));
+    expect(palette.isOpen()).toBe(false);
+  });
 });

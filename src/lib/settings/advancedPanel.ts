@@ -1,5 +1,6 @@
 import { validateCustomCss } from '../theme/themeEngine';
 import { checkBalancedBraces } from '../theme/customCssValidate';
+import { createCheckboxInput as checkbox, createOptionsRow as row } from '../ui/formControls';
 import {
   applySettingsBackupFromJson,
   downloadSettingsBackup,
@@ -100,7 +101,37 @@ function renderImportExportPanel(container: HTMLElement, deps: SettingsDeps): vo
   container.append(help, jsonWrap, fileInput, actions);
 }
 
+function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void {
+  container.appendChild(
+    row(
+      'Save to cloud',
+      checkbox(deps.optionsLocal.syncToCloud, (enabled) => {
+        const previous = deps.optionsLocal.syncToCloud;
+        deps.optionsLocal.syncToCloud = enabled;
+        void Promise.resolve(deps.setSyncToCloud(enabled)).catch(() => {
+          deps.optionsLocal.syncToCloud = previous;
+          deps.refreshPanel();
+        });
+        deps.refreshPanel();
+      }),
+      {
+        help: 'Sync layout and settings across signed-in Chrome browsers. Uploaded background images stay on this device. Existing installs that already used Chrome sync keep this on.',
+      }
+    )
+  );
+  const help = document.createElement('p');
+  help.className = 'options-help';
+  help.textContent =
+    'Sync layout and settings across signed-in Chrome browsers. Uploaded background images stay on this device and are not included. Existing installs that already used Chrome sync keep this on.';
+  container.appendChild(help);
+}
+
 export function renderAdvancedPanel(container: HTMLElement, deps: SettingsDeps): void {
+  container.appendChild(
+    collapsibleSection('advanced-cloud', 'Cloud sync', (body) => {
+      renderCloudSyncPanel(body, deps);
+    })
+  );
   container.appendChild(
     collapsibleSection('advanced-import', 'Import / export', (body) => {
       renderImportExportPanel(body, deps);

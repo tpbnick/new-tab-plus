@@ -3,26 +3,6 @@
   padding: 2px 4px;
 }
 
-.column.drag-over-before {
-  box-shadow: -3px 0 0 0 var(--ntp-color-highlight, #6fa8dc);
-}
-
-.column.drag-over-after {
-  box-shadow: 3px 0 0 0 var(--ntp-color-highlight, #6fa8dc);
-}
-
-.column.drag-over-into {
-  box-shadow: inset 0 0 0 2px var(--ntp-color-highlight, #6fa8dc);
-}
-
-.bookmark-item.drag-over-before {
-  box-shadow: none;
-}
-
-.bookmark-item.drag-over-after {
-  box-shadow: none;
-}
-
 .bookmark-drop-line {
   position: fixed;
   height: 2px;
@@ -214,16 +194,6 @@ body.is-folder-dragging .folder-column-header {
   padding: 2px 0;
   font-weight: 500;
   cursor: pointer;
-}
-
-.bookmark-item--folder.drag-over-into > .folder-toggle {
-  color: var(--ntp-color-highlight, #6fa8dc);
-  background: color-mix(in srgb, var(--ntp-color-highlight, #6fa8dc) 18%, transparent);
-  border-radius: 4px;
-}
-
-.bookmark-item--folder.drag-over-into > .bookmark-list {
-  border-left-color: var(--ntp-color-highlight, #6fa8dc);
 }
 
 .folder-toggle:hover {

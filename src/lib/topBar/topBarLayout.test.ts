@@ -5,6 +5,11 @@ import { registerBuiltinWidgets } from '../../widgets/registerAll';
 import { setBuiltinWidgetEnabled } from '../widgets/widgetLayout';
 import {
   clampSearchMaxWidthPx,
+  clampTopBarGapPx,
+  clampTopBarMaxWidthPx,
+  clampTopBarOptions,
+  clampTopBarWidgetHeightPx,
+  clampTopBarWidgetScale,
   moveTopBarItem,
   normalizeTopBarItemOrder,
   resolveVisibleTopBarOrder,
@@ -57,5 +62,28 @@ describe('topBarLayout', () => {
     expect(clampSearchMaxWidthPx(1500)).toBe(SEARCH_MAX_WIDTH_PX);
     expect(clampSearchMaxWidthPx(100)).toBe(200);
     expect(clampSearchMaxWidthPx(750)).toBe(750);
+  });
+
+  it('clamps imported top-bar numerics to slider bounds', () => {
+    expect(clampTopBarMaxWidthPx(100)).toBe(400);
+    expect(clampTopBarMaxWidthPx(9999)).toBe(3840);
+    expect(clampTopBarWidgetHeightPx(1)).toBe(24);
+    expect(clampTopBarWidgetHeightPx(400)).toBe(200);
+    expect(clampTopBarWidgetScale(100)).toBe(3);
+    expect(clampTopBarWidgetScale(0)).toBe(0.5);
+    expect(clampTopBarGapPx(-10)).toBe(0);
+    expect(clampTopBarGapPx(500)).toBe(120);
+
+    const clamped = clampTopBarOptions({
+      ...createDefaultOptionsState().topBar,
+      widgetScale: 100,
+      widgetHeightPx: -5,
+      maxWidthPx: 50,
+      gapPx: 999,
+    });
+    expect(clamped.widgetScale).toBe(3);
+    expect(clamped.widgetHeightPx).toBe(24);
+    expect(clamped.maxWidthPx).toBe(400);
+    expect(clamped.gapPx).toBe(120);
   });
 });

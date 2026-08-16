@@ -51,4 +51,16 @@ describe('pickGeocodeResult', () => {
   it('falls back to the first result when qualifiers do not match', () => {
     expect(pickGeocodeResult('Portland, Antarctica', [portlandMe, portlandOr])).toBe(portlandMe);
   });
+
+  it('does not treat empty region or country as a match for any qualifier', () => {
+    const unnamed: GeocodeResult = {
+      id: 5,
+      name: 'Portland',
+      latitude: 0,
+      longitude: 0,
+      admin1: '',
+      country: '',
+    };
+    expect(pickGeocodeResult('Portland, Oregon', [unnamed, portlandOr])).toBe(portlandOr);
+  });
 });
