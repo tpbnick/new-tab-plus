@@ -57,7 +57,7 @@ npm run package # zip dist for release
 
 Weather data is fetched from [Open-Meteo](https://open-meteo.com/) when the weather widget is enabled (requires network access).
 
-Layout and settings stay on this device by default. Turn on **Settings → Advanced → Save to cloud** to sync them through your Google account. Uploaded background images stay on this device. Existing installs that already used Chrome sync keep cloud sync on. See the [user guide & privacy policy](https://tpbnick.github.io/new-tab-plus/) for details.
+Layout and settings stay on this device by default. Turn on **Settings → Advanced → Save to cloud** to sync them through your Google account. Uploaded background images stay on this device. See the [user guide & privacy policy](https://tpbnick.github.io/new-tab-plus/) for details.
 
 ## Possible Upcoming Features
 - Calendar integration (Google, Apple)
