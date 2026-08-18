@@ -113,16 +113,12 @@ function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void 
           deps.refreshPanel();
         });
         deps.refreshPanel();
-      }),
-      {
-        help: 'Sync layout and settings across signed-in Chrome browsers. Uploaded background images stay on this device. Existing installs that already used Chrome sync keep this on.',
-      }
+      })
     )
   );
   const help = document.createElement('p');
   help.className = 'options-help';
-  help.textContent =
-    'Sync layout and settings across signed-in Chrome browsers. Uploaded background images stay on this device and are not included. Existing installs that already used Chrome sync keep this on.';
+  help.textContent = 'Uploaded background images stay on this device and are not included.';
   container.appendChild(help);
 }
 
