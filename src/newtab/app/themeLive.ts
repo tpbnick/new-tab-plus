@@ -1,4 +1,5 @@
 import { resolveBackgroundImageUrl } from '../../lib/theme/colorUtils';
+import { syncAppliedPresetColors } from '../../lib/theme/presets';
 import { applyBackground, applyCustomCss, applyGeneralOptions, applyTheme } from '../../lib/theme/themeEngine';
 import { applyTopBar } from '../../lib/topBar/topBarLayout';
 import { appState } from './state';
@@ -14,6 +15,7 @@ function resolvedBackground() {
 }
 
 export function applyLiveTheme(): void {
+  syncAppliedPresetColors(appState.optionsState.theme);
   const background = resolvedBackground();
   applyTheme(appState.optionsState.theme, background);
   applyBackground(background, appState.optionsState.theme.colors.background);

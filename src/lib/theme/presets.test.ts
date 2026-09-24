@@ -6,6 +6,7 @@ import {
   detectThemePresetId,
   getThemePreset,
   saveCustomThemeSnapshot,
+  syncAppliedPresetColors,
   THEME_PRESET_CUSTOM_ID,
 } from './presets';
 
@@ -29,6 +30,25 @@ describe('theme presets', () => {
     expect(options.theme.spacing).toBe(beforeSpacing);
     expect(options.theme.regionGapPx).toBe(beforeGap);
     expect(detectThemePresetId(options.theme)).toBe('hacker');
+  });
+
+  it('updates a saved GitHub Dark theme to the current Primer colors', () => {
+    const options = createDefaultOptionsState();
+    options.theme.presetId = 'github-dark';
+    options.theme.colors = {
+      text: '#e6edf3',
+      background: '#0d1117',
+      highlight: '#58a6ff',
+      highlightText: '#0d1117',
+      shadow: 'rgba(48, 54, 61, 0.85)',
+    };
+
+    syncAppliedPresetColors(options.theme);
+
+    expect(options.theme.colors.text).toBe('#f0f6fc');
+    expect(options.theme.colors.highlight).toBe('#4493f8');
+    expect(options.theme.colors.shadow).toBe('#3d444d');
+    expect(detectThemePresetId(options.theme)).toBe('github-dark');
   });
 
   it('returns custom when colors were edited away from a preset', () => {
