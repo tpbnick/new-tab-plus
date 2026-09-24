@@ -3,6 +3,7 @@ import type { GridFolderDropResult } from '../../lib/dnd/bookmarkDropTarget';
 import {
   collectGridColumnIds,
   gridColumnIdForFolder,
+  insertBeforeIdAfterColumnSplit,
   reIdSourceColumnAfterNamesakeSplit,
 } from '../../lib/dnd/gridFolderMove';
 import { getColumnStack, setColumnStack } from '../../lib/grid/gridStack';
@@ -12,6 +13,12 @@ import type { BookmarkGridColumnMeta } from '../../lib/storage/schema';
 import { appState, markLayoutDirty } from './state';
 
 export type PersistLayoutAndRender = () => Promise<void>;
+
+function sortedLayoutColumnIds(): string[] {
+  return [...appState.layoutState.columns]
+    .sort((a, b) => a.order - b.order)
+    .map((column) => column.id);
+}
 
 export function reorderLayoutColumns(movedColumnId: string, beforeColumnId: string | null): void {
   markLayoutDirty();
@@ -208,7 +215,12 @@ export async function handleGridFolderNewColumn(
     sourceGridColumnId === newColId && sourceStack.length === 1 && sourceStack[0] === folderId;
 
   if (isSoloColumnMove) {
+    const orderBefore = sortedLayoutColumnIds();
     reorderLayoutColumns(newColId, beforeColumnId);
+    if (sortedLayoutColumnIds().join('\0') === orderBefore.join('\0')) {
+      appState.layoutDirty = false;
+      return;
+    }
     dndLog('handleGridFolderNewColumn result (solo reorder)', {
       folderId,
       newColId,
@@ -217,6 +229,9 @@ export async function handleGridFolderNewColumn(
     await persistLayoutAndRender();
     return;
   }
+
+  const orderedIdsBeforeSplit = sortedLayoutColumnIds();
+  const sourceIdAtDrop = sourceCol.id;
 
   setColumnStack(sourceCol, sourceStack.filter((id) => id !== folderId));
 
@@ -228,6 +243,14 @@ export async function handleGridFolderNewColumn(
 
   appState.layoutState.columns = appState.layoutState.columns.filter(
     (c) => c.type !== 'bookmarkGrid' || getColumnStack(c).length > 0
+  );
+
+  const sourceStillPresent = appState.layoutState.columns.includes(sourceCol);
+  const insertBefore = insertBeforeIdAfterColumnSplit(
+    orderedIdsBeforeSplit,
+    sourceIdAtDrop,
+    beforeColumnId,
+    sourceStillPresent ? sourceCol.id : null
   );
 
   let newCol = appState.layoutState.columns.find(
@@ -254,12 +277,13 @@ export async function handleGridFolderNewColumn(
     );
   }
 
-  reorderLayoutColumns(newColId, beforeColumnId);
+  reorderLayoutColumns(newColId, insertBefore);
 
   dndLog('handleGridFolderNewColumn result', {
     folderId,
     newColId,
     beforeColumnId,
+    insertBefore,
     stack: getColumnStack(newCol),
     allGridColumns: appState.layoutState.columns
       .filter((c): c is BookmarkGridColumnMeta => c.type === 'bookmarkGrid')

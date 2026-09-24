@@ -21,6 +21,7 @@ describe('reorderIds', () => {
   it('inserts an item that is not yet in the list (cross-column move)', () => {
     expect(reorderIds(['a', 'b', 'c'], 'new', 'b')).toEqual(['a', 'new', 'b', 'c']);
     expect(reorderIds(['a', 'b', 'c'], 'new', null)).toEqual(['a', 'b', 'c', 'new']);
+    expect(reorderIds(['a', 'b'], 'c', 'c')).toEqual(['a', 'b', 'c']);
   });
 
   it('does not mutate the input array', () => {

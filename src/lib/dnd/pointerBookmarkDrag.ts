@@ -97,8 +97,7 @@ export function attachPointerFolderDrag(
   }
 
   function updateFolderDropTarget(clientX: number, clientY: number, drag: PendingFolderDrag) {
-    const skipBlock = drag.header.closest<HTMLElement>('.folder-column-block');
-    const resolved = resolveGridFolderDrop(gridHost, drag.folderId, clientX, clientY, skipBlock);
+    const resolved = resolveGridFolderDrop(gridHost, drag.folderId, clientX, clientY);
 
     if (!resolved) {
       hideDropLine();

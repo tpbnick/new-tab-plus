@@ -1,10 +1,11 @@
 /**
- * Moves `movedId` to just before `beforeId` in the list (or to the end if
- * `beforeId` is null or not found). If `movedId` is not already in `ids`,
- * it is inserted (cross-column folder moves).
+ * Moves `movedId` to just before `beforeId` (or to the end if `beforeId` is
+ * null or not in the list). If `movedId` is already in `ids` and `beforeId`
+ * is that same id, the list stays put — a column dropped on its own leading
+ * edge must not jump to the end. If `movedId` is not in `ids`, it is inserted.
  */
 export function reorderIds(ids: string[], movedId: string, beforeId: string | null): string[] {
-  if (beforeId === movedId) return [...ids];
+  if (beforeId === movedId && ids.includes(movedId)) return [...ids];
 
   const result = ids.filter((id) => id !== movedId);
 

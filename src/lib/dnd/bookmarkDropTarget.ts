@@ -124,19 +124,10 @@ function resolveFolderInColumn(
   for (const block of blocks) {
     const rect = block.getBoundingClientRect();
     const folderId = block.dataset.folderId ?? null;
+    const mid = rect.top + rect.height / 2;
 
-    if (clientY < rect.top) {
+    if (clientY < mid) {
       return { gridColumnId, targetFolderId: folderId, position: 'before' };
-    }
-
-    if (clientY <= rect.bottom) {
-      const header = block.querySelector<HTMLElement>('.folder-column-header');
-      const headerBottom = header?.getBoundingClientRect().bottom ?? rect.top;
-
-      if (clientY < headerBottom) {
-        return { gridColumnId, targetFolderId: folderId, position: 'before' };
-      }
-      return { gridColumnId, targetFolderId: folderId, position: 'after' };
     }
   }
 
@@ -166,121 +157,37 @@ export function resolveLayoutColumnInsert(
   return resolveInsertFromZones(buildInsertZones(columns), clientX);
 }
 
-function shouldPreferColumnInsertOverStack(
-  gridHost: HTMLElement,
-  clientX: number,
-  insert: LayoutColumnInsert,
-  sourceColumnId?: string | null
-): boolean {
-  const columns = sortedLayoutColumns(gridHost);
-  if (columns.length === 0) return true;
-
-  const gap = measureColumnGapPx(columns);
-
-  if (insert.beforeColumnId !== null) {
-    const target = columns.find((col) => col.dataset.columnId === insert.beforeColumnId);
-    if (target) {
-      const targetRect = target.getBoundingClientRect();
-      const targetId = target.dataset.columnId ?? null;
-      const inGapBeforeTarget =
-        clientX >= targetRect.left - gap && clientX <= targetRect.left;
-      const draggingOwnColumnLeft =
-        sourceColumnId === targetId &&
-        clientX >= targetRect.left - gap &&
-        clientX <= targetRect.left + gap;
-      if (inGapBeforeTarget || draggingOwnColumnLeft) {
-        return true;
-      }
-    }
-  } else {
-    const last = columns[columns.length - 1]!;
-    const lastRect = last.getBoundingClientRect();
-    const lastId = last.dataset.columnId ?? null;
-    const inGapAfterLast = clientX >= lastRect.right && clientX <= lastRect.right + gap;
-    const draggingOwnColumnRight =
-      sourceColumnId === lastId &&
-      clientX >= lastRect.right - gap &&
-      clientX <= lastRect.right + gap;
-    if (inGapAfterLast || draggingOwnColumnRight) {
-      return true;
-    }
-  }
-
-  for (let i = 0; i < columns.length - 1; i++) {
-    const leftRect = columns[i]!.getBoundingClientRect();
-    const rightRect = columns[i + 1]!.getBoundingClientRect();
-    const nextColumnId = columns[i + 1]!.dataset.columnId ?? null;
-    if (
-      insert.beforeColumnId === nextColumnId &&
-      clientX >= leftRect.right &&
-      clientX <= rightRect.left
-    ) {
-      return true;
-    }
-  }
-
-  for (const col of columns) {
-    const rect = col.getBoundingClientRect();
-    if (clientX >= rect.left && clientX <= rect.right) return false;
-  }
-
-  return false;
+function columnStripAtX(columns: HTMLElement[], clientX: number): HTMLElement | null {
+  return (
+    columns.find((col) => {
+      const rect = col.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right;
+    }) ?? null
+  );
 }
 
-/** Bookmark grid column whose bounding box contains the pointer (geometry-only; no hit testing). */
-function bookmarkGridColumnAtPoint(
-  gridHost: HTMLElement,
-  clientX: number,
-  clientY: number
-): HTMLElement | null {
-  const gridRect = gridHost.getBoundingClientRect();
-  if (
-    clientY < gridRect.top ||
-    clientY > gridRect.bottom ||
-    clientX < gridRect.left ||
-    clientX > gridRect.right
-  ) {
-    return null;
-  }
-
-  for (const gridColumn of gridHost.querySelectorAll<HTMLElement>('.column--bookmark-grid')) {
-    const rect = gridColumn.getBoundingClientRect();
-    if (
-      clientX >= rect.left &&
-      clientX <= rect.right &&
-      clientY >= rect.top &&
-      clientY <= rect.bottom
-    ) {
-      return gridColumn;
-    }
-  }
-
-  return null;
-}
-
+/**
+ * Over a bookmark column, the folder moves above or below another folder.
+ * In a gap, or in the margin beside the row, it becomes its own column.
+ */
 export function resolveGridFolderDrop(
   gridHost: HTMLElement,
   draggedFolderId: string,
   clientX: number,
-  clientY: number,
-  skipBlock?: HTMLElement | null
+  clientY: number
 ): GridFolderDropResult | null {
-  const sourceColumnId =
-    skipBlock?.closest<HTMLElement>('.column[data-column-id]')?.dataset.columnId ?? null;
+  const gridRect = gridHost.getBoundingClientRect();
+  if (clientY < gridRect.top || clientY > gridRect.bottom) return null;
+
+  const strip = columnStripAtX(sortedLayoutColumns(gridHost), clientX);
+  if (strip) {
+    if (!strip.classList.contains('column--bookmark-grid')) return null;
+    const folderTarget = resolveFolderInColumn(strip, draggedFolderId, clientY);
+    if (folderTarget) return { mode: 'into', ...folderTarget };
+    return null;
+  }
+
   const insert = resolveLayoutColumnInsert(gridHost, clientX, clientY);
-  const gridColumn = bookmarkGridColumnAtPoint(gridHost, clientX, clientY);
-
-  if (insert && shouldPreferColumnInsertOverStack(gridHost, clientX, insert, sourceColumnId)) {
-    return { mode: 'newColumn', beforeColumnId: insert.beforeColumnId, lineX: insert.lineX };
-  }
-
-  if (gridColumn) {
-    const folderTarget = resolveFolderInColumn(gridColumn, draggedFolderId, clientY);
-    if (folderTarget) {
-      return { mode: 'into', ...folderTarget };
-    }
-  }
-
   if (!insert) return null;
   return { mode: 'newColumn', beforeColumnId: insert.beforeColumnId, lineX: insert.lineX };
 }

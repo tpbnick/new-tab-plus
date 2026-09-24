@@ -30,3 +30,22 @@ export function reIdSourceColumnAfterNamesakeSplit(
 export function collectGridColumnIds(columns: BookmarkGridColumnMeta[]): Set<string> {
   return new Set(columns.map((c) => c.id));
 }
+
+/**
+ * Drop slots are captured before a split. When the slot was the source column
+ * and that column was renamed or removed, retarget the slot so the new column
+ * stays in the gap under the pointer.
+ */
+export function insertBeforeIdAfterColumnSplit(
+  orderedColumnIds: readonly string[],
+  sourceColumnId: string,
+  beforeColumnId: string | null,
+  sourceColumnIdAfterSplit: string | null
+): string | null {
+  if (beforeColumnId !== sourceColumnId) return beforeColumnId;
+  if (sourceColumnIdAfterSplit) return sourceColumnIdAfterSplit;
+
+  const sourceIndex = orderedColumnIds.indexOf(sourceColumnId);
+  if (sourceIndex === -1) return null;
+  return orderedColumnIds[sourceIndex + 1] ?? null;
+}
