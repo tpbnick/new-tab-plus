@@ -63,11 +63,16 @@ export function renderWidgetColumn(
     instanceId: meta.instanceId,
     getSetting: <T>(key: string) => mergedSettings[key] as T,
     saveSettings: async (partial) => {
+      const previous = { ...mergedSettings };
       Object.assign(mergedSettings, partial);
-      const skipRefresh = await callbacks.onSettingsSaved(meta.instanceId, partial);
-      if (!skipRefresh) {
-        await instanceRef?.refresh?.();
+      const saved = await callbacks.onSettingsSaved(meta.instanceId, partial);
+      if (saved) return;
+
+      for (const key of Object.keys(mergedSettings)) {
+        if (!(key in previous)) delete mergedSettings[key];
       }
+      Object.assign(mergedSettings, previous);
+      await instanceRef?.refresh?.();
     },
   };
 

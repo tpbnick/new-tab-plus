@@ -35,11 +35,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Atom One Light Syntax (atom/one-light-syntax)',
     colors: {
-      text: '#383a42', // mono-1
-      background: '#fafafa', // syntax-bg
-      highlight: '#4078f2', // hue-2 blue
+      text: '#383a42',
+      background: '#fafafa',
+      highlight: '#4078f2',
       highlightText: '#ffffff',
-      shadow: 'rgba(56, 58, 66, 0.2)', // syntax-guide ~20% mono-1
+      shadow: 'rgba(56, 58, 66, 0.2)',
     },
   },
   {
@@ -49,11 +49,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Atom One Dark Syntax (atom/one-dark-syntax)',
     colors: {
-      text: '#abb2bf', // mono-1
-      background: '#282c34', // syntax-bg
-      highlight: '#61afef', // hue-2 blue
+      text: '#abb2bf',
+      background: '#282c34',
+      highlight: '#61afef',
       highlightText: '#282c34',
-      shadow: 'rgba(92, 99, 112, 0.35)', // mono-3 #5c6370
+      shadow: 'rgba(92, 99, 112, 0.35)',
     },
   },
   {
@@ -63,11 +63,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Nord (nordtheme/nord)',
     colors: {
-      text: '#2e3440', // nord0
-      background: '#eceff4', // nord6
-      highlight: '#5e81ac', // nord10
+      text: '#2e3440',
+      background: '#eceff4',
+      highlight: '#5e81ac',
       highlightText: '#eceff4',
-      shadow: 'rgba(76, 86, 106, 0.35)', // nord3 #4c566a
+      shadow: 'rgba(76, 86, 106, 0.35)',
     },
   },
   {
@@ -77,11 +77,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Nord (nordtheme/nord)',
     colors: {
-      text: '#d8dee9', // nord4
-      background: '#2e3440', // nord0
-      highlight: '#88c0d0', // nord8
+      text: '#d8dee9',
+      background: '#2e3440',
+      highlight: '#88c0d0',
       highlightText: '#2e3440',
-      shadow: 'rgba(76, 86, 106, 0.35)', // nord3 #4c566a
+      shadow: 'rgba(76, 86, 106, 0.35)',
     },
   },
   {
@@ -93,9 +93,9 @@ export const THEME_PRESETS: ThemePreset[] = [
     colors: {
       text: '#29242a',
       background: '#faf4f2',
-      highlight: '#1c8ca8', // accent5
+      highlight: '#1c8ca8',
       highlightText: '#faf4f2',
-      shadow: 'rgba(191, 185, 186, 0.45)', // dimmed4 #bfb9ba
+      shadow: 'rgba(191, 185, 186, 0.45)',
     },
   },
   {
@@ -109,7 +109,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       background: '#272822',
       highlight: '#a6e22e',
       highlightText: '#272822',
-      shadow: 'rgba(117, 113, 94, 0.4)', // comment #75715e
+      shadow: 'rgba(117, 113, 94, 0.4)',
     },
   },
   {
@@ -119,11 +119,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Atom One Dark Syntax (atom/one-dark-syntax)',
     colors: {
-      text: '#abb2bf', // mono-1
-      background: '#282c34', // syntax-bg
-      highlight: '#c678dd', // hue-3 purple
+      text: '#abb2bf',
+      background: '#282c34',
+      highlight: '#c678dd',
       highlightText: '#282c34',
-      shadow: 'rgba(92, 99, 112, 0.35)', // mono-3 #5c6370
+      shadow: 'rgba(92, 99, 112, 0.35)',
     },
   },
   {
@@ -137,7 +137,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       background: '#282a36',
       highlight: '#bd93f9',
       highlightText: '#282a36',
-      shadow: 'rgba(98, 114, 164, 0.35)', // comment #6272a4
+      shadow: 'rgba(98, 114, 164, 0.35)',
     },
   },
   {
@@ -147,11 +147,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Gruvbox (morhetz/gruvbox)',
     colors: {
-      text: '#ebdbb2', // gruvbox fg
-      background: '#282828', // gruvbox bg0
-      highlight: '#83a598', // gruvbox blue/aqua
+      text: '#ebdbb2',
+      background: '#282828',
+      highlight: '#83a598',
       highlightText: '#282828',
-      shadow: 'rgba(146, 131, 116, 0.35)', // gruvbox gray #928374
+      shadow: 'rgba(146, 131, 116, 0.35)',
     },
   },
   {
@@ -161,11 +161,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Solarized (ethanschoonover.com/solarized)',
     colors: {
-      text: '#657b83', // base00
-      background: '#fdf6e3', // base3
-      highlight: '#268bd2', // blue
+      text: '#657b83',
+      background: '#fdf6e3',
+      highlight: '#268bd2',
       highlightText: '#fdf6e3',
-      shadow: 'rgba(147, 161, 161, 0.35)', // base1 #93a1a1
+      shadow: 'rgba(147, 161, 161, 0.35)',
     },
   },
   {
@@ -175,11 +175,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'Solarized (ethanschoonover.com/solarized)',
     colors: {
-      text: '#839496', // base0
-      background: '#002b36', // base03
-      highlight: '#2aa198', // cyan
+      text: '#839496',
+      background: '#002b36',
+      highlight: '#2aa198',
       highlightText: '#002b36',
-      shadow: 'rgba(88, 110, 117, 0.35)', // base01 #586e75
+      shadow: 'rgba(88, 110, 117, 0.35)',
     },
   },
   {
@@ -189,11 +189,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'GitHub Primer (primer.style)',
     colors: {
-      text: '#1f2328', // fg.default
-      background: '#ffffff', // canvas.default
-      highlight: '#0969da', // accent.fg
+      text: '#1f2328',
+      background: '#ffffff',
+      highlight: '#0969da',
       highlightText: '#ffffff',
-      shadow: 'rgba(209, 217, 224, 0.85)', // border.default #d1d9e0
+      shadow: 'rgba(209, 217, 224, 0.85)',
     },
   },
   {
@@ -203,11 +203,11 @@ export const THEME_PRESETS: ThemePreset[] = [
     fontWeight: 400,
     source: 'GitHub Primer (primer.style)',
     colors: {
-      text: '#e6edf3', // fg.default
-      background: '#0d1117', // canvas.default
-      highlight: '#58a6ff', // accent emphasis / link blue
-      highlightText: '#0d1117',
-      shadow: 'rgba(48, 54, 61, 0.85)', // border.default #30363d
+      text: '#f0f6fc',
+      background: '#0d1117',
+      highlight: '#4493f8',
+      highlightText: '#ffffff',
+      shadow: '#3d444d',
     },
   },
   {
@@ -308,6 +308,19 @@ export function applyCustomThemeSnapshot(theme: OptionsState['theme']): void {
   theme.fontWeight = theme.customSnapshot.fontWeight;
   theme.colors = { ...theme.customSnapshot.colors };
   theme.autoTextColor = theme.customSnapshot.autoTextColor;
+}
+
+/**
+ * Copies the current preset colors onto a theme that still has that preset selected.
+ * Official palette corrections then show up without turning a custom theme into a preset.
+ */
+export function syncAppliedPresetColors(theme: OptionsState['theme']): void {
+  if (!theme.presetId || theme.presetId === THEME_PRESET_CUSTOM_ID) return;
+  const preset = getThemePreset(theme.presetId);
+  if (!preset || themeMatchesPreset(theme, preset)) return;
+  theme.fontFamily = preset.fontFamily;
+  theme.fontWeight = preset.fontWeight;
+  theme.colors = { ...preset.colors };
 }
 
 /** Applies font and color fields from a preset; leaves spacing and layout theme fields untouched. */

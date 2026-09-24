@@ -1,4 +1,17 @@
-import { setLayout, setOptionsLocal, setOptionsSynced } from '../../lib/storage/storage';
+import {
+  buildBookmarkPathMaps,
+  collectBookmarkIds,
+  layoutFromPortableBookmarks,
+  layoutToPortableBookmarks,
+} from '../../lib/bookmarks/bookmarkPaths';
+import {
+  readCloudSnapshot,
+  setLayout,
+  setLayoutLocal,
+  setOptionsLocal,
+  setOptionsSynced,
+  writeCloudSnapshot,
+} from '../../lib/storage/storage';
 import { resetBookmarkGridLayout } from '../../lib/bookmarks/bookmarkTree';
 import { LayoutPersistError } from '../../lib/storage/layoutPersistError';
 import { showSaveError } from '../../lib/ui/saveErrorBanner';
@@ -222,20 +235,40 @@ export function setOptionsLocalDirect(newOptionsLocal: OptionsLocalState): void 
   });
 }
 
-export async function setSyncToCloud(enabled: boolean): Promise<void> {
-  const previous = appState.optionsLocalState.syncToCloud;
-  appState.optionsLocalState = { ...appState.optionsLocalState, syncToCloud: enabled };
-  try {
-    await setOptionsLocal(appState.optionsLocalState);
-    await persistLayout();
-    await setOptionsSynced(appState.optionsState);
-  } catch (err) {
-    appState.optionsLocalState = { ...appState.optionsLocalState, syncToCloud: previous };
-    await setOptionsLocal(appState.optionsLocalState).catch((rollbackErr) => {
-      console.error('[new-tab-plus] failed to revert save-to-cloud', rollbackErr);
-    });
-    throw err;
+export async function saveLayoutToCloud(): Promise<void> {
+  const tree = await chrome.bookmarks.getTree();
+  const { idToPath } = buildBookmarkPathMaps(tree);
+  await writeCloudSnapshot(
+    layoutToPortableBookmarks(appState.layoutState, idToPath),
+    appState.optionsState
+  );
+}
+
+export async function restoreLayoutFromCloud(): Promise<boolean> {
+  const snapshot = await readCloudSnapshot();
+  if (!snapshot) return false;
+
+  const tree = await chrome.bookmarks.getTree();
+  const { pathToId } = buildBookmarkPathMaps(tree);
+  const layout = await setLayoutLocal(
+    layoutFromPortableBookmarks(snapshot.layout, pathToId, collectBookmarkIds(tree))
+  );
+  appState.layoutState = layout;
+  appState.layoutDirty = false;
+  appState.cachedTopBarKey = '';
+
+  if (snapshot.options) {
+    const next = mergeOptionsState(snapshot.options);
+    const currentUrl = appState.optionsState.background.imageUrl;
+    if (currentUrl.startsWith('data:') && !next.background.imageUrl.startsWith('data:')) {
+      next.background.imageUrl = currentUrl;
+    }
+    appState.optionsState = next;
+    applyLiveTheme();
+    await setOptionsSynced(next);
   }
+
+  return true;
 }
 
 export async function resetBookmarkLayout(persistAndRenderLayout: () => Promise<void>): Promise<void> {

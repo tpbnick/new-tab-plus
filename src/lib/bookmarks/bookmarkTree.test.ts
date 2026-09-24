@@ -30,6 +30,24 @@ function stackFolders(column: BookmarkColumnViewModel): BookmarkFolderViewModel[
 }
 
 describe('reconcileBookmarkColumns', () => {
+  it('drops collapse state for bookmarks that no longer exist', () => {
+    const tree = buildTree([folder('10', 'Work', [])]);
+    const { layout } = reconcileBookmarkColumns(tree, {
+      ...createDefaultLayoutState(),
+      columns: [],
+      folderState: {
+        '10': { collapsed: true },
+        '999': { collapsed: true },
+        'special:apps': { collapsed: true },
+      },
+    });
+
+    expect(layout.folderState).toEqual({
+      '10': { collapsed: true },
+      'special:apps': { collapsed: true },
+    });
+  });
+
   it('turns top-level folders into grid columns with nested children preserved', () => {
     const tree = buildTree([
       folder('10', 'Work', [bookmark('11', 'Jira', 'https://jira.example')]),

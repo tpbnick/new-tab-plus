@@ -62,7 +62,7 @@ describe('official theme palette values', () => {
     [
       'github-dark',
       'GitHub Primer',
-      { text: '#e6edf3', background: '#0d1117', highlight: '#58a6ff' },
+      { text: '#f0f6fc', background: '#0d1117', highlight: '#4493f8' },
     ],
     [
       'github-light',

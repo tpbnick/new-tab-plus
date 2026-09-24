@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   gridColumnIdForFolder,
+  insertBeforeIdAfterColumnSplit,
   reIdSourceColumnAfterNamesakeSplit,
 } from './gridFolderMove';
 import type { BookmarkGridColumnMeta } from '../storage/schema';
@@ -41,6 +42,28 @@ describe('reIdSourceColumnAfterNamesakeSplit', () => {
     reIdSourceColumnAfterNamesakeSplit(source, '48', taken);
 
     expect(source.id).toBe('grid:stack:24');
+  });
+});
+
+describe('insertBeforeIdAfterColumnSplit', () => {
+  it('keeps a drop slot that is not the source column', () => {
+    expect(insertBeforeIdAfterColumnSplit(['grid:10', 'grid:30'], 'grid:10', 'grid:30', 'grid:20')).toBe(
+      'grid:30'
+    );
+    expect(insertBeforeIdAfterColumnSplit(['grid:10', 'grid:30'], 'grid:10', null, 'grid:20')).toBeNull();
+  });
+
+  it('follows a source column that was renamed while splitting its namesake', () => {
+    expect(insertBeforeIdAfterColumnSplit(['grid:10', 'grid:30'], 'grid:10', 'grid:10', 'grid:20')).toBe(
+      'grid:20'
+    );
+  });
+
+  it('uses the following column when the source column is removed', () => {
+    expect(insertBeforeIdAfterColumnSplit(['grid:5', 'grid:other', 'grid:9'], 'grid:other', 'grid:other', null)).toBe(
+      'grid:9'
+    );
+    expect(insertBeforeIdAfterColumnSplit(['grid:other'], 'grid:other', 'grid:other', null)).toBeNull();
   });
 });
 

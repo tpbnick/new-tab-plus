@@ -30,6 +30,9 @@ export interface SettingsDeps {
   setLayoutDirect(layout: LayoutState): void;
   setOptionsDirect(options: OptionsState): void;
   setOptionsLocalDirect(optionsLocal: OptionsLocalState): void;
-  setSyncToCloud(enabled: boolean): void | Promise<void>;
+  /** Copy the current layout and settings to Chrome sync for another browser to restore. */
+  saveLayoutToCloud(): Promise<void>;
+  /** Replace this browser's layout and settings with the cloud copy. False when nothing is saved. */
+  restoreLayoutFromCloud(): Promise<boolean>;
   onCheckForUpdatesChange?(enabled: boolean): void;
 }

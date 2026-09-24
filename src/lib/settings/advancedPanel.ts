@@ -1,6 +1,5 @@
 import { validateCustomCss } from '../theme/themeEngine';
 import { checkBalancedBraces } from '../theme/customCssValidate';
-import { createCheckboxInput as checkbox, createOptionsRow as row } from '../ui/formControls';
 import {
   applySettingsBackupFromJson,
   downloadSettingsBackup,
@@ -102,24 +101,79 @@ function renderImportExportPanel(container: HTMLElement, deps: SettingsDeps): vo
 }
 
 function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void {
-  container.appendChild(
-    row(
-      'Save to cloud',
-      checkbox(deps.optionsLocal.syncToCloud, (enabled) => {
-        const previous = deps.optionsLocal.syncToCloud;
-        deps.optionsLocal.syncToCloud = enabled;
-        void Promise.resolve(deps.setSyncToCloud(enabled)).catch(() => {
-          deps.optionsLocal.syncToCloud = previous;
-          deps.refreshPanel();
-        });
-        deps.refreshPanel();
-      })
-    )
-  );
   const help = document.createElement('p');
   help.className = 'options-help';
-  help.textContent = 'Uploaded background images stay on this device and are not included.';
-  container.appendChild(help);
+  help.textContent =
+    'Saves your column layout and settings through your Google account. Chrome syncs the bookmarks themselves; Restore from cloud puts those folders back into the same columns on another browser. Save once on this browser, then on the new one open Settings → Advanced and choose Restore from cloud. Uploaded background images stay on this device.';
+
+  const status = document.createElement('p');
+  status.className = 'options-help';
+  status.setAttribute('role', 'status');
+
+  const actions = document.createElement('div');
+  actions.className = 'options-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.textContent = 'Save to cloud';
+
+  const restoreBtn = document.createElement('button');
+  restoreBtn.type = 'button';
+  restoreBtn.textContent = 'Restore from cloud';
+
+  const setBusy = (busy: boolean): void => {
+    saveBtn.disabled = busy;
+    restoreBtn.disabled = busy;
+  };
+
+  saveBtn.addEventListener('click', () => {
+    setBusy(true);
+    status.textContent = '';
+    void (async () => {
+      try {
+        await deps.flushPendingSaves();
+        await deps.saveLayoutToCloud();
+        status.textContent =
+          'Saved. On another browser, open Settings → Advanced and choose Restore from cloud.';
+      } catch (err) {
+        console.error('[new-tab-plus] failed to save layout to cloud', err);
+        status.textContent = 'Could not save to cloud. Check that Chrome sync is on and you have sync space.';
+      } finally {
+        setBusy(false);
+      }
+    })();
+  });
+
+  restoreBtn.addEventListener('click', () => {
+    const ok = window.confirm(
+      'Replace the layout and settings on this browser with the copy saved to your Google account?'
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    status.textContent = '';
+    void (async () => {
+      try {
+        const restored = await deps.restoreLayoutFromCloud();
+        if (!restored) {
+          status.textContent =
+            'Nothing is saved to your Google account yet. On the other browser, choose Save to cloud first.';
+          return;
+        }
+        deps.rerenderPage();
+        deps.refreshPanel();
+        status.textContent = 'Restored the layout and settings saved to your Google account.';
+      } catch (err) {
+        console.error('[new-tab-plus] failed to restore layout from cloud', err);
+        status.textContent = 'Could not restore from cloud. Check that Chrome sync is on.';
+      } finally {
+        setBusy(false);
+      }
+    })();
+  });
+
+  actions.append(saveBtn, restoreBtn);
+  container.append(help, actions, status);
 }
 
 export function renderAdvancedPanel(container: HTMLElement, deps: SettingsDeps): void {
