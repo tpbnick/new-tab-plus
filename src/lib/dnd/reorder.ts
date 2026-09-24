@@ -4,6 +4,8 @@
  * it is inserted (cross-column folder moves).
  */
 export function reorderIds(ids: string[], movedId: string, beforeId: string | null): string[] {
+  if (beforeId === movedId) return [...ids];
+
   const result = ids.filter((id) => id !== movedId);
 
   if (beforeId === null) {

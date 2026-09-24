@@ -1,8 +1,7 @@
 import {
   APP_TAGLINE,
   APP_VERSION,
-  AUTHOR_NAME,
-  AUTHOR_URL,
+  CHROME_WEB_STORE_URL,
   GITHUB_ISSUES_URL,
   GITHUB_LICENSE_URL,
   GITHUB_REPO_URL,
@@ -102,6 +101,9 @@ export function renderAboutPanel(
   const github = aboutRow('GitHub');
   github.value.appendChild(externalLink(GITHUB_REPO_URL, 'tpbnick/new-tab-plus'));
 
+  const chromeWebStore = aboutRow('Chrome Web Store');
+  chromeWebStore.value.appendChild(externalLink(CHROME_WEB_STORE_URL, 'View listing'));
+
   const latest = aboutRow('Latest change');
   latest.value.appendChild(
     latestChangeValue(LATEST_CHANGE.commitUrl, LATEST_CHANGE.shortSha, LATEST_CHANGE.date)
@@ -123,22 +125,17 @@ export function renderAboutPanel(
   );
   updatesSetting.classList.add('about-panel__updates-setting');
 
-  const credit = document.createElement('p');
-  credit.className = 'about-panel__credit';
-  credit.append('Built with ', document.createTextNode('♥'), ' by ');
-  credit.appendChild(externalLink(AUTHOR_URL, AUTHOR_NAME));
-
   panel.append(
     logo,
     title,
     tagline,
     version.row,
     github.row,
+    chromeWebStore.row,
     latest.row,
     license.row,
     support.row,
-    updatesSetting,
-    credit
+    updatesSetting
   );
   container.appendChild(panel);
 }

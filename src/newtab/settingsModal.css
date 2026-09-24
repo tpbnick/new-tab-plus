@@ -302,7 +302,7 @@
 
 .about-panel__label {
   flex: 0 0 auto;
-  min-width: 6.5em;
+  min-width: 11em;
   font-weight: 500;
   color: var(--ntp-color-text-muted, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 82%, transparent));
 }

@@ -152,7 +152,10 @@ export interface OptionsLocalState {
   customCss: string;
   /** Latest release version the user dismissed from the update banner. */
   dismissedUpdateVersion: string;
-  /** When true, layout and options write to chrome.storage.sync. Off for new installs. */
+  /**
+   * Older builds mirrored every edit to Chrome sync while this was true.
+   * New edits stay on this device; cloud copies are explicit Save / Restore.
+   */
   syncToCloud: boolean;
   /** data: URL for an uploaded background. Stays on this device; never synced. */
   uploadedBackgroundImage: string;

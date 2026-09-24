@@ -4,6 +4,7 @@ import {
   getOptionsLocal,
   getOptionsSynced,
   loadLayout,
+  moveAutomaticCloudCopyToLocal,
   optionsAffectLayout,
   optionsForCloud,
   optionsGridInteractionsChanged,
@@ -177,10 +178,38 @@ describe('storage', () => {
     expect(mockStorageData('sync').layout).toBeUndefined();
   });
 
-  it('enables save-to-cloud when existing sync data is present', async () => {
+  it('leaves save-to-cloud off when existing sync data is present', async () => {
     await chrome.storage.sync.set({ options: { schemaVersion: SCHEMA_VERSION } });
     const local = await getOptionsLocal();
+    expect(local.syncToCloud).toBe(false);
+  });
+
+  it('picks up a syncToCloud change written by another tab', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: false });
+    await chrome.storage.local.set({
+      optionsLocal: { ...createDefaultOptionsLocalState(), syncToCloud: true },
+    });
+
+    const local = await getOptionsLocal();
     expect(local.syncToCloud).toBe(true);
+  });
+
+  it('copies an automatic cloud layout onto this device and stops continuous sync', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
+    const layout = createDefaultLayoutState();
+    layout.folderState = { '4': { collapsed: true } };
+    await setLayout(layout);
+    delete mockStorageData('local').layout;
+    delete mockStorageData('local').folderState;
+
+    await moveAutomaticCloudCopyToLocal();
+
+    const local = await getOptionsLocal();
+    expect(local.syncToCloud).toBe(false);
+    const loaded = await loadLayout();
+    expect(loaded.source).toBe('local');
+    expect(loaded.layout.folderState).toEqual({ '4': { collapsed: true } });
+    expect(mockStorageData('sync').layout).toBeDefined();
   });
 
   it('returns the sanitized layout from setLayout', async () => {

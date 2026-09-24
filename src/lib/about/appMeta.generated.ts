@@ -2,10 +2,9 @@
 export const APP_VERSION = "1.2.3";
 export const APP_TAGLINE = "A bookmarks-driven, widget-extensible new tab page.";
 export const GITHUB_REPO_URL = "https://github.com/tpbnick/new-tab-plus";
+export const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/dkjlggnlonimcbcpjjiapolpibakcdeo";
 export const GITHUB_ISSUES_URL = "https://github.com/tpbnick/new-tab-plus/issues/new";
 export const GITHUB_LICENSE_URL = "https://github.com/tpbnick/new-tab-plus/blob/main/LICENSE";
-export const AUTHOR_NAME = 'Nick Platt';
-export const AUTHOR_URL = 'https://nickplatt.dev';
 
 export const LATEST_CHANGE = {
   shortSha: "bd3d2fd",

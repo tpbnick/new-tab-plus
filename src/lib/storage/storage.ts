@@ -119,27 +119,16 @@ function layoutNeedsPersist(raw: unknown, sanitized: LayoutState): boolean {
   return !isLayoutNormalized(sanitized);
 }
 
-async function detectLegacyCloudData(): Promise<boolean> {
-  const sync = await chrome.storage.sync.get([KEYS.layout, KEYS.options]);
-  if (sync[KEYS.options] && typeof sync[KEYS.options] === 'object') {
-    const merged = mergeOptionsState(sync[KEYS.options] as Partial<OptionsState>);
-    if (merged.general.syncBookmarkLayout === false) return false;
-  }
-  return sync[KEYS.layout] !== undefined || sync[KEYS.options] !== undefined;
-}
-
+/** Always re-read the flag. A cached value ignores toggles made in another tab. */
 async function ensureSyncToCloud(): Promise<boolean> {
-  if (typeof resolvedSyncToCloud === 'boolean') return resolvedSyncToCloud;
-
   const result = await chrome.storage.local.get(KEYS.optionsLocal);
   const raw = result[KEYS.optionsLocal] as Partial<OptionsLocalState> | undefined;
   if (typeof raw?.syncToCloud === 'boolean') {
     resolvedSyncToCloud = raw.syncToCloud;
     return resolvedSyncToCloud;
   }
-
-  resolvedSyncToCloud = await detectLegacyCloudData();
-  return resolvedSyncToCloud;
+  resolvedSyncToCloud = false;
+  return false;
 }
 
 /** Drop data: background URLs — they are too large for Chrome sync and stay local. */
@@ -220,6 +209,61 @@ export async function setLayout(state: LayoutState): Promise<LayoutState> {
   const useSync = await ensureSyncToCloud();
   await writeLayout(useSync ? chrome.storage.sync : chrome.storage.local, sanitized);
   return sanitized;
+}
+
+/** Writes layout on this device even when an older profile still has cloud sync enabled. */
+export async function setLayoutLocal(state: LayoutState): Promise<LayoutState> {
+  const sanitized = migrateAndNormalizeLayout(state);
+  await writeLayout(chrome.storage.local, sanitized);
+  return sanitized;
+}
+
+export async function readCloudSnapshot(): Promise<{
+  layout: LayoutState;
+  options: OptionsState | null;
+} | null> {
+  const raw = await readLayoutRaw(chrome.storage.sync);
+  if (raw === undefined) return null;
+  const optionsRaw = (await chrome.storage.sync.get(KEYS.options))[KEYS.options];
+  const options =
+    optionsRaw && typeof optionsRaw === 'object'
+      ? normalizeOptions(mergeOptionsState(optionsRaw as Partial<OptionsState>))
+      : null;
+  return { layout: migrateAndNormalizeLayout(raw), options };
+}
+
+export async function writeCloudSnapshot(layout: LayoutState, options: OptionsState): Promise<void> {
+  const sanitized = migrateAndNormalizeLayout(layout);
+  await writeLayout(chrome.storage.sync, sanitized);
+  const cloudOptions = optionsForCloud(normalizeOptions(options));
+  assertSyncItemFits(KEYS.options, cloudOptions);
+  await writeTo(chrome.storage.sync, KEYS.options, cloudOptions);
+}
+
+/**
+ * Older builds mirrored every edit to Chrome sync. Copy that cloud layout onto
+ * this device once, then leave further cloud copies to the explicit Save button.
+ */
+export async function moveAutomaticCloudCopyToLocal(): Promise<void> {
+  const local = await getOptionsLocal();
+  if (!local.syncToCloud) return;
+
+  const raw = await readLayoutRaw(chrome.storage.sync);
+  if (raw !== undefined) {
+    await writeLayout(chrome.storage.local, migrateAndNormalizeLayout(raw));
+  }
+
+  const syncOptions = (await chrome.storage.sync.get(KEYS.options))[KEYS.options];
+  if (syncOptions && typeof syncOptions === 'object') {
+    const localOptions = (await chrome.storage.local.get(KEYS.options))[KEYS.options];
+    await writeTo(
+      chrome.storage.local,
+      KEYS.options,
+      normalizeOptions(mergeCloudAndLocalOptions(syncOptions, localOptions))
+    );
+  }
+
+  await setOptionsLocal({ ...local, syncToCloud: false });
 }
 
 function normalizeOptions(state: OptionsState): OptionsState {

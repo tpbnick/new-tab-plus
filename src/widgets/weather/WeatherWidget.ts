@@ -51,6 +51,7 @@ const settingsSchema: WidgetSettingsField[] = [
 class WeatherWidgetInstance implements WidgetInstance {
   private destroyed = false;
   private refreshTimerId: number | undefined;
+  private attemptedLocationClear = false;
   // Bumped on every render() call so a stale, still-in-flight call (e.g. one
   // racing against a newer render triggered by a settings change) can detect
   // it's no longer the latest and bail out without touching the DOM, making
@@ -75,7 +76,29 @@ class WeatherWidgetInstance implements WidgetInstance {
 
     if (isStale()) return;
 
-    if (this.settings.locationQuery && this.settings.locationQuery !== this.settings.resolvedQuery) {
+    if (!this.settings.locationQuery.trim()) {
+      const hasSavedPlace =
+        this.settings.latitude != null ||
+        this.settings.longitude != null ||
+        this.settings.locationName !== '' ||
+        this.settings.resolvedQuery !== '';
+      if (hasSavedPlace && !this.attemptedLocationClear) {
+        this.attemptedLocationClear = true;
+        await this.ctx.saveSettings({
+          locationQuery: '',
+          latitude: null,
+          longitude: null,
+          locationName: '',
+          resolvedQuery: '',
+        });
+        if (isStale()) return;
+      }
+      this.renderUnconfigured();
+      return;
+    }
+    this.attemptedLocationClear = false;
+
+    if (this.settings.locationQuery !== this.settings.resolvedQuery) {
       if (this.settings.latitude != null && this.settings.longitude != null) {
         this.renderLoadingShell();
       } else {

@@ -152,6 +152,32 @@ export function resetBookmarkGridLayout(layout: LayoutState, tree: BookmarkNode[
   };
 }
 
+function collectBookmarkIds(tree: BookmarkNode[]): Set<string> {
+  const ids = new Set<string>();
+  const walk = (node: BookmarkNode): void => {
+    ids.add(node.id);
+    for (const child of node.children ?? []) walk(child);
+  };
+  for (const node of tree) walk(node);
+  return ids;
+}
+
+function pruneFolderState(
+  folderState: LayoutState['folderState'],
+  ids: Set<string>
+): LayoutState['folderState'] {
+  let changed = false;
+  const next: LayoutState['folderState'] = {};
+  for (const [key, value] of Object.entries(folderState)) {
+    if (isSpecialSectionStackId(key) || ids.has(key)) {
+      next[key] = value;
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : folderState;
+}
+
 function gridColumnsUnchanged(
   next: BookmarkGridColumnMeta[],
   prev: BookmarkGridColumnMeta[]
@@ -283,13 +309,16 @@ export function reconcileBookmarkColumns(tree: BookmarkNode[], layout: LayoutSta
     newGridColumns.length === 0 &&
     restoredSectionColumns.length === 0 &&
     gridColumnsUnchanged(gridColumns, existingGridColumns);
+  const folderState = pruneFolderState(layout.folderState, collectBookmarkIds(tree));
 
-  const reconciledLayout: LayoutState = unchanged
-    ? layout
-    : {
-        ...layout,
-        columns: reconciledColumns,
-      };
+  const reconciledLayout: LayoutState =
+    unchanged && folderState === layout.folderState
+      ? layout
+      : {
+          ...layout,
+          columns: unchanged ? layout.columns : reconciledColumns,
+          folderState,
+        };
 
   const columns: BookmarkColumnViewModel[] = gridColumns
     .map((meta) => ({

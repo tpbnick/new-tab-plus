@@ -3,6 +3,7 @@ import {
   getOptionsSynced,
   isSelfStorageWrite,
   loadLayout,
+  moveAutomaticCloudCopyToLocal,
   setOptionsLocal,
 } from '../lib/storage/storage';
 import { attachNonSelectableLabels } from '../lib/ui/collapsible';
@@ -27,10 +28,11 @@ import {
   saveOptions,
   saveOptionsNow,
   saveOptionsLocal,
+  restoreLayoutFromCloud,
+  saveLayoutToCloud,
   setLayoutDirect,
   setOptionsDirect,
   setOptionsLocalDirect,
-  setSyncToCloud,
 } from './app/layoutPersistence';
 import {
   applyOptionsFromStorage,
@@ -148,7 +150,8 @@ const settingsDeps: SettingsDeps = {
   setLayoutDirect: (layout) => setLayoutDirect(layout, persistAndRender),
   setOptionsDirect: (options) => setOptionsDirect(options, handleRemoteOptionsChange),
   setOptionsLocalDirect,
-  setSyncToCloud,
+  saveLayoutToCloud,
+  restoreLayoutFromCloud,
   flushPendingSaves: () => flushPendingSavesAsync(createWidgetRefreshFn()),
   onCheckForUpdatesChange: (enabled) => {
     if (enabled) {
@@ -197,6 +200,7 @@ if (appRoot) attachNonSelectableLabels(appRoot);
 
 void (async () => {
   try {
+    await moveAutomaticCloudCopyToLocal();
     const local = await getOptionsLocal();
     const synced = await getOptionsSynced();
     const { layout } = await loadLayout();

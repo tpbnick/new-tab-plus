@@ -26,7 +26,8 @@ function makeSettingsDeps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
     setLayoutDirect: vi.fn(),
     setOptionsDirect: vi.fn(),
     setOptionsLocalDirect: vi.fn(),
-    setSyncToCloud: vi.fn(),
+    saveLayoutToCloud: vi.fn(),
+    restoreLayoutFromCloud: vi.fn(),
     ...overrides,
   };
 }

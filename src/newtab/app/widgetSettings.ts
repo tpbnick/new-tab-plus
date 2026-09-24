@@ -7,6 +7,21 @@ import { appState, markLayoutDirty } from './state';
 import { persistLayout } from './layoutPersistence';
 import type { ScheduleRender } from './types';
 
+/** Settings captured before the first unsaved edit in the current debounce. */
+const settingsBeforePendingSave = new Map<string, Record<string, unknown>>();
+
+function findWidgetById(widgetId: string): WidgetColumnMeta | undefined {
+  return appState.layoutState.columns.find(
+    (c): c is WidgetColumnMeta => c.type === 'widget' && c.widgetId === widgetId
+  );
+}
+
+function findWidgetByInstance(instanceId: string): WidgetColumnMeta | undefined {
+  return appState.layoutState.columns.find(
+    (c): c is WidgetColumnMeta => c.type === 'widget' && c.instanceId === instanceId
+  );
+}
+
 function mergeWidgetSettings(meta: WidgetColumnMeta, partial: Record<string, unknown>): void {
   if (!meta.settings || typeof meta.settings !== 'object') {
     meta.settings = {};
@@ -26,10 +41,11 @@ export function saveWidgetSettings(
   renderTopBar: () => void,
   scheduleRender: ScheduleRender
 ): void {
-  const meta = appState.layoutState.columns.find(
-    (c): c is WidgetColumnMeta => c.type === 'widget' && c.widgetId === widgetId
-  );
+  const meta = findWidgetById(widgetId);
   if (!meta) return;
+  if (!settingsBeforePendingSave.has(widgetId)) {
+    settingsBeforePendingSave.set(widgetId, { ...(meta.settings ?? {}) });
+  }
   mergeWidgetSettings(meta, partial);
   invalidateTopBarCacheIfNeeded(meta.widgetId);
   if (isTopBarWidget(meta.widgetId)) {
@@ -50,9 +66,7 @@ export function refreshWidgetUiAfterSettingsSave(
   renderTopBar: () => void,
   scheduleRender: ScheduleRender
 ): void {
-  const meta = appState.layoutState.columns.find(
-    (c): c is WidgetColumnMeta => c.type === 'widget' && c.widgetId === widgetId
-  );
+  const meta = findWidgetById(widgetId);
   if (!meta) return;
 
   if (isTopBarWidget(meta.widgetId)) {
@@ -78,12 +92,21 @@ async function persistPendingWidgetSettings(
     await persistLayout();
     for (const widgetId of widgetIds) {
       appState.pendingWidgetSettingsSaves.delete(widgetId);
+      settingsBeforePendingSave.delete(widgetId);
       refreshFn(widgetId);
     }
   } catch (err) {
     console.error('[new-tab-plus] failed to save widget settings', err);
     if (!(err instanceof LayoutPersistError)) {
       showSaveError('Could not save widget settings.');
+    }
+    for (const widgetId of widgetIds) {
+      const previous = settingsBeforePendingSave.get(widgetId);
+      const meta = findWidgetById(widgetId);
+      if (meta && previous) meta.settings = { ...previous };
+      appState.pendingWidgetSettingsSaves.delete(widgetId);
+      settingsBeforePendingSave.delete(widgetId);
+      refreshFn(widgetId);
     }
   }
 }
@@ -94,10 +117,9 @@ export async function handleWidgetSettingsSaved(
   renderTopBar: () => void,
   scheduleRender: ScheduleRender
 ): Promise<boolean> {
-  const meta = appState.layoutState.columns.find(
-    (c): c is WidgetColumnMeta => c.type === 'widget' && c.instanceId === instanceId
-  );
+  const meta = findWidgetByInstance(instanceId);
   if (!meta) return true;
+  const previousSettings = { ...(meta.settings ?? {}) };
   mergeWidgetSettings(meta, partial);
   invalidateTopBarCacheIfNeeded(meta.widgetId);
   markLayoutDirty();
@@ -105,6 +127,7 @@ export async function handleWidgetSettingsSaved(
   try {
     await persistLayout();
     appState.pendingWidgetSettingsSaves.delete(meta.widgetId);
+    settingsBeforePendingSave.delete(meta.widgetId);
 
     if (isTopBarWidget(meta.widgetId)) {
       renderTopBar();
@@ -120,6 +143,9 @@ export async function handleWidgetSettingsSaved(
     scheduleRender('full');
     return true;
   } catch (err) {
+    meta.settings = previousSettings;
+    appState.pendingWidgetSettingsSaves.delete(meta.widgetId);
+    settingsBeforePendingSave.delete(meta.widgetId);
     console.error('[new-tab-plus] failed to save widget settings', err);
     showSaveError('Could not save widget settings.');
     return false;
