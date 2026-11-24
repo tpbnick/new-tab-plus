@@ -4,7 +4,9 @@ export interface GeocodeResult {
   latitude: number;
   longitude: number;
   country: string;
+  countryCode?: string;
   admin1?: string;
+  admin2?: string;
 }
 
 interface RawGeocodeResult {
@@ -13,17 +15,19 @@ interface RawGeocodeResult {
   latitude: number;
   longitude: number;
   country?: string;
+  country_code?: string;
   admin1?: string;
+  admin2?: string;
 }
 
-export async function geocodeSearch(query: string): Promise<GeocodeResult[]> {
+export async function geocodeSearch(query: string, signal?: AbortSignal): Promise<GeocodeResult[]> {
   if (!query.trim()) return [];
 
   const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
   url.searchParams.set('name', query);
   url.searchParams.set('count', '5');
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!res.ok) {
     throw new Error(`Geocoding request failed: ${res.status}`);
   }
@@ -35,31 +39,125 @@ export async function geocodeSearch(query: string): Promise<GeocodeResult[]> {
     latitude: r.latitude,
     longitude: r.longitude,
     country: r.country ?? '',
+    countryCode: r.country_code,
     admin1: r.admin1,
+    admin2: r.admin2,
   }));
 }
 
 function normalizeLocationToken(value: string): string {
-  return value.trim().toLowerCase();
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
+
+const REGION_ALIASES: Record<string, string[]> = {
+  // Country abbreviations
+  us: ['united states'],
+  usa: ['united states', 'us'],
+  'u.s.': ['united states', 'us'],
+  'u.s.a.': ['united states', 'us'],
+  uk: ['united kingdom', 'gb'],
+  'u.k.': ['united kingdom', 'gb'],
+  gb: ['united kingdom', 'uk'],
+  au: ['australia'],
+  br: ['brazil'],
+  ch: ['switzerland'],
+  cn: ['china'],
+  es: ['spain'],
+  fr: ['france'],
+  ie: ['ireland'],
+  it: ['italy'],
+  jp: ['japan'],
+  kr: ['south korea'],
+  mx: ['mexico'],
+  nz: ['new zealand'],
+  se: ['sweden'],
+  // US states & DC (including overlaps with country codes)
+  al: ['alabama', 'albania'],
+  ak: ['alaska'],
+  az: ['arizona', 'azerbaijan'],
+  ar: ['arkansas', 'argentina'],
+  ca: ['california', 'canada'],
+  co: ['colorado', 'colombia'],
+  ct: ['connecticut'],
+  dc: ['district of columbia'],
+  de: ['delaware', 'germany'],
+  fl: ['florida'],
+  ga: ['georgia'],
+  hi: ['hawaii'],
+  id: ['idaho', 'indonesia'],
+  il: ['illinois', 'israel'],
+  in: ['indiana', 'india'],
+  ia: ['iowa'],
+  ks: ['kansas'],
+  ky: ['kentucky'],
+  la: ['louisiana', 'laos'],
+  me: ['maine', 'montenegro'],
+  md: ['maryland', 'moldova'],
+  ma: ['massachusetts', 'morocco'],
+  mi: ['michigan'],
+  mn: ['minnesota', 'mongolia'],
+  ms: ['mississippi'],
+  mo: ['missouri'],
+  mt: ['montana', 'malta'],
+  ne: ['nebraska', 'niger'],
+  nv: ['nevada'],
+  nh: ['new hampshire'],
+  nj: ['new jersey'],
+  nm: ['new mexico'],
+  ny: ['new york'],
+  nc: ['north carolina'],
+  nd: ['north dakota'],
+  oh: ['ohio'],
+  ok: ['oklahoma'],
+  or: ['oregon'],
+  pa: ['pennsylvania', 'panama'],
+  ri: ['rhode island'],
+  sc: ['south carolina'],
+  sd: ['south dakota'],
+  tn: ['tennessee', 'tunisia'],
+  tx: ['texas'],
+  ut: ['utah'],
+  vt: ['vermont'],
+  va: ['virginia'],
+  wa: ['washington'],
+  wv: ['west virginia'],
+  wi: ['wisconsin'],
+  wy: ['wyoming'],
+  // Canadian provinces & territories
+  ab: ['alberta'],
+  bc: ['british columbia'],
+  mb: ['manitoba'],
+  nb: ['new brunswick'],
+  nl: ['newfoundland and labrador', 'netherlands'],
+  ns: ['nova scotia'],
+  nt: ['northwest territories'],
+  nu: ['nunavut'],
+  on: ['ontario'],
+  pe: ['prince edward island', 'peru'],
+  qc: ['quebec'],
+  sk: ['saskatchewan', 'slovakia'],
+  yt: ['yukon'],
+};
 
 function expandLocationAlias(token: string): string[] {
   const normalized = normalizeLocationToken(token);
-  if (normalized === 'usa' || normalized === 'us' || normalized === 'u.s.' || normalized === 'u.s.a.') {
-    return [normalized, 'united states'];
-  }
-  if (normalized === 'uk' || normalized === 'u.k.') {
-    return [normalized, 'united kingdom'];
-  }
-  return [normalized];
+  const extra = REGION_ALIASES[normalized];
+  return extra ? [normalized, ...extra] : [normalized];
 }
 
 function locationFieldMatchesToken(field: string, token: string): boolean {
   const normalizedField = normalizeLocationToken(field);
   if (!normalizedField) return false;
+
   for (const alias of expandLocationAlias(token)) {
     if (!alias) continue;
-    if (normalizedField === alias || normalizedField.includes(alias) || alias.includes(normalizedField)) {
+    if (normalizedField === alias) return true;
+    if (alias.length <= 2 || normalizedField.length <= 2) continue;
+    if (normalizedField.includes(alias) || alias.includes(normalizedField)) {
       return true;
     }
   }
@@ -84,7 +182,7 @@ export function pickGeocodeResult(query: string, results: GeocodeResult[]): Geoc
   let bestScore = 0;
 
   for (const result of results) {
-    const fields = [result.admin1 ?? '', result.country ?? '', result.name];
+    const fields = [result.admin1 ?? '', result.admin2 ?? '', result.country ?? '', result.countryCode ?? ''];
     let score = 0;
     for (const qualifier of qualifiers) {
       if (fields.some((field) => locationFieldMatchesToken(field, qualifier))) {
@@ -101,14 +199,17 @@ export function pickGeocodeResult(query: string, results: GeocodeResult[]): Geoc
   return results[0];
 }
 
-export async function resolveLocationFromQuery(query: string): Promise<GeocodeResult | undefined> {
+export async function resolveLocationFromQuery(
+  query: string,
+  signal?: AbortSignal
+): Promise<GeocodeResult | undefined> {
   const trimmed = query.trim();
   if (!trimmed) return undefined;
 
   const searchTerm = trimmed.includes(',') ? trimmed.split(',')[0]!.trim() : trimmed;
   if (!searchTerm) return undefined;
 
-  const results = await geocodeSearch(searchTerm);
+  const results = await geocodeSearch(searchTerm, signal);
   return pickGeocodeResult(trimmed, results);
 }
 
@@ -142,7 +243,8 @@ interface RawForecastResponse {
 export async function fetchForecast(
   latitude: number,
   longitude: number,
-  tempUnit: 'celsius' | 'fahrenheit'
+  tempUnit: 'celsius' | 'fahrenheit',
+  signal?: AbortSignal
 ): Promise<ForecastResult> {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', String(latitude));
@@ -152,7 +254,7 @@ export async function fetchForecast(
   url.searchParams.set('timezone', 'auto');
   url.searchParams.set('temperature_unit', tempUnit);
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!res.ok) {
     throw new Error(`Open-Meteo forecast request failed: ${res.status}`);
   }

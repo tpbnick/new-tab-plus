@@ -33,45 +33,77 @@ const FONT_SIZE_MIN_PX = 10;
 const FONT_SIZE_MAX_PX = 32;
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
-function markThemeCustom(deps: SettingsDeps): void {
-  saveCustomThemeSnapshot(deps.options.theme);
+interface AppearanceUiSync {
+  setPresetSelect(el: HTMLSelectElement): void;
+  markThemeCustom(): void;
+  registerBgDependentSync(fn: () => void): void;
+  syncBgDependent(): void;
 }
 
-function renderThemePresetPicker(container: HTMLElement, deps: SettingsDeps): void {
+function createAppearanceUiSync(deps: SettingsDeps): AppearanceUiSync {
+  let presetSelect: HTMLSelectElement | null = null;
+  const bgSyncCallbacks: Array<() => void> = [];
+
+  return {
+    setPresetSelect(el) {
+      presetSelect = el;
+    },
+    markThemeCustom() {
+      saveCustomThemeSnapshot(deps.options.theme);
+      if (presetSelect) {
+        presetSelect.value = THEME_PRESET_CUSTOM_ID;
+      }
+    },
+    registerBgDependentSync(fn) {
+      bgSyncCallbacks.push(fn);
+    },
+    syncBgDependent() {
+      for (const fn of bgSyncCallbacks) fn();
+    },
+  };
+}
+
+function renderThemePresetPicker(
+  container: HTMLElement,
+  deps: SettingsDeps,
+  ui: AppearanceUiSync
+): void {
   const help = document.createElement('p');
   help.className = 'options-help';
   help.textContent = 'Presets change fonts and colors only.';
   container.appendChild(help);
 
-  container.appendChild(
-    row(
-      'Theme',
-      selectInput(
-        detectThemePresetId(deps.options.theme),
-        themePresetChoices(),
-        (id) => {
-          if (id === THEME_PRESET_CUSTOM_ID) {
-            applyCustomThemeSnapshot(deps.options.theme);
-            deps.saveOptionsNow();
-            deps.refreshPanel();
-            return;
-          }
-          const preset = getThemePreset(id);
-          if (!preset) return;
-          if (deps.options.theme.presetId === THEME_PRESET_CUSTOM_ID) {
-            saveCustomThemeSnapshot(deps.options.theme);
-          }
-          applyThemePreset(deps.options.theme, preset);
-          deps.saveOptionsNow();
-          deps.refreshPanel();
-        },
-        'options-select--wide'
-      )
-    )
+  const presetSelect = selectInput(
+    detectThemePresetId(deps.options.theme),
+    themePresetChoices(),
+    (id) => {
+      if (id === THEME_PRESET_CUSTOM_ID) {
+        applyCustomThemeSnapshot(deps.options.theme);
+        deps.saveOptionsNow();
+        deps.refreshPanel();
+        return;
+      }
+      const preset = getThemePreset(id);
+      if (!preset) return;
+      if (deps.options.theme.presetId === THEME_PRESET_CUSTOM_ID) {
+        saveCustomThemeSnapshot(deps.options.theme);
+      }
+      applyThemePreset(deps.options.theme, preset);
+      deps.saveOptionsNow();
+      deps.refreshPanel();
+    },
+    'options-select--wide'
   );
+  ui.setPresetSelect(presetSelect);
+
+  container.appendChild(row('Theme', presetSelect));
 }
 
-function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
+function renderThemePanel(
+  container: HTMLElement,
+  deps: SettingsDeps,
+  ui: AppearanceUiSync
+): void {
   container.appendChild(
     row(
       'Font family',
@@ -79,8 +111,8 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
         resolveFontFamilyValue(deps.options.theme.fontFamily),
         FONT_FAMILY_OPTIONS,
         (v) => {
-          markThemeCustom(deps);
           deps.options.theme.fontFamily = v;
+          ui.markThemeCustom();
           deps.saveOptionsNow();
         },
         'options-select--wide'
@@ -92,8 +124,8 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
       'Font weight',
       deps.options.theme.fontWeight,
       (v) => {
-        markThemeCustom(deps);
         deps.options.theme.fontWeight = v;
+        ui.markThemeCustom();
         deps.saveOptions();
       },
       300,
@@ -128,8 +160,8 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
     row(
       'Background color',
       colorInput(deps.options.theme.colors.background, (v) => {
-        markThemeCustom(deps);
         deps.options.theme.colors.background = v;
+        ui.markThemeCustom();
         deps.saveOptions();
       })
     )
@@ -138,34 +170,40 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
     row(
       'Auto text color from background',
       checkbox(deps.options.theme.autoTextColor, (v) => {
-        markThemeCustom(deps);
         deps.options.theme.autoTextColor = v;
+        ui.markThemeCustom();
         deps.saveOptionsNow();
         deps.refreshPanel();
       })
     )
   );
-  const hasImage = hasBackgroundImage(
-    deps.options.background,
-    deps.optionsLocal.uploadedBackgroundImage
-  );
-  if (hasImage) {
-    const autoHelp = document.createElement('p');
-    autoHelp.className = 'options-help';
-    autoHelp.textContent =
-      'Auto text color only applies when no background image is set. With an image, use Text color below.';
-    container.appendChild(autoHelp);
-  }
-  const autoTextActive = deps.options.theme.autoTextColor && !hasImage;
+  const autoHelp = document.createElement('p');
+  autoHelp.className = 'options-help';
+  autoHelp.textContent =
+    'Auto text color only applies when no background image is set. With an image, use Text color below.';
+  container.appendChild(autoHelp);
+
   const textColorControl = colorInput(deps.options.theme.colors.text, (v) => {
-    markThemeCustom(deps);
     deps.options.theme.colors.text = v;
+    ui.markThemeCustom();
     deps.saveOptions();
   });
-  if (autoTextActive) {
-    textColorControl.disabled = true;
-    textColorControl.title = 'Disabled while auto text color is on and no background image is set';
-  }
+
+  const syncAutoTextUi = (): void => {
+    const hasImage = hasBackgroundImage(
+      deps.options.background,
+      deps.optionsLocal.uploadedBackgroundImage
+    );
+    autoHelp.hidden = !hasImage;
+    const autoTextActive = deps.options.theme.autoTextColor && !hasImage;
+    textColorControl.disabled = autoTextActive;
+    textColorControl.title = autoTextActive
+      ? 'Disabled while auto text color is on and no background image is set'
+      : '';
+  };
+  syncAutoTextUi();
+  ui.registerBgDependentSync(syncAutoTextUi);
+
   container.appendChild(row('Text color', textColorControl));
   container.appendChild(
     rangeRow(
@@ -185,8 +223,8 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
     row(
       'Highlight color',
       colorInput(deps.options.theme.colors.highlight, (v) => {
-        markThemeCustom(deps);
         deps.options.theme.colors.highlight = v;
+        ui.markThemeCustom();
         deps.saveOptions();
       })
     )
@@ -214,8 +252,8 @@ function renderThemePanel(container: HTMLElement, deps: SettingsDeps): void {
     row(
       'Border color',
       rgbaColorInput(deps.options.theme.colors.shadow, (v) => {
-        markThemeCustom(deps);
         deps.options.theme.colors.shadow = v;
+        ui.markThemeCustom();
         deps.saveOptions();
       })
     )
@@ -337,10 +375,16 @@ function renderLinkHoverPanel(container: HTMLElement, deps: SettingsDeps): void 
   }
 }
 
-function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void {
+function renderBackgroundPanel(
+  container: HTMLElement,
+  deps: SettingsDeps,
+  ui: AppearanceUiSync
+): void {
   const urlError = document.createElement('p');
   urlError.className = 'options-field-error';
   urlError.setAttribute('role', 'alert');
+
+  let removeBtn: HTMLButtonElement | null = null;
 
   const urlInput = textInput(deps.options.background.imageUrl, (v) => {
     const validation = validateBackgroundImageUrl(v);
@@ -355,7 +399,7 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
     urlError.textContent = '';
     urlInput.classList.remove('options-json--invalid');
     urlInput.removeAttribute('aria-invalid');
-    if (v.trim().startsWith('data:image/')) {
+    if (/^data:image\//i.test(v.trim())) {
       deps.optionsLocal.uploadedBackgroundImage = v.trim();
       deps.options.background.imageUrl = '';
       deps.saveOptionsLocal();
@@ -367,9 +411,11 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
     if (v.trim() && deps.optionsLocal.uploadedBackgroundImage) {
       deps.optionsLocal.uploadedBackgroundImage = '';
       deps.saveOptionsLocal();
+      removeBtn?.remove();
+      removeBtn = null;
     }
     deps.saveOptions();
-    if (deps.options.theme.autoTextColor) deps.refreshPanel();
+    ui.syncBgDependent();
   });
 
   const fileInput = document.createElement('input');
@@ -414,7 +460,7 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
   uploadActions.className = 'options-actions';
   uploadActions.appendChild(uploadBtn);
   if (deps.optionsLocal.uploadedBackgroundImage) {
-    const removeBtn = document.createElement('button');
+    removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = 'Remove uploaded image';
     removeBtn.addEventListener('click', () => {
@@ -433,27 +479,36 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
   container.appendChild(row('Image URL', urlInput));
   container.appendChild(urlError);
   container.append(uploadActions, uploadHelp);
-  if (hasBackgroundImage(deps.options.background, deps.optionsLocal.uploadedBackgroundImage)) {
-    container.appendChild(
-      rangeRow(
-        'Image opacity',
-        deps.options.background.imageOpacityPct,
-        (v) => {
-          deps.options.background.imageOpacityPct = v;
-          deps.saveOptions();
-        },
-        0,
-        100,
-        5,
-        '%'
-      )
+
+  const opacityRow = rangeRow(
+    'Image opacity',
+    deps.options.background.imageOpacityPct,
+    (v) => {
+      deps.options.background.imageOpacityPct = v;
+      deps.saveOptions();
+    },
+    0,
+    100,
+    5,
+    '%'
+  );
+  const opacityHelp = document.createElement('p');
+  opacityHelp.className = 'options-help';
+  opacityHelp.textContent =
+    'Lower opacity fades the image toward your background color so bookmarks stay readable.';
+  container.append(opacityRow, opacityHelp);
+
+  const syncOpacityUi = (): void => {
+    const hasImage = hasBackgroundImage(
+      deps.options.background,
+      deps.optionsLocal.uploadedBackgroundImage
     );
-    const opacityHelp = document.createElement('p');
-    opacityHelp.className = 'options-help';
-    opacityHelp.textContent =
-      'Lower opacity fades the image toward your background color so bookmarks stay readable.';
-    container.appendChild(opacityHelp);
-  }
+    opacityRow.hidden = !hasImage;
+    opacityHelp.hidden = !hasImage;
+  };
+  syncOpacityUi();
+  ui.registerBgDependentSync(syncOpacityUi);
+
   container.appendChild(
     row(
       'Size',
@@ -498,14 +553,15 @@ function renderBackgroundPanel(container: HTMLElement, deps: SettingsDeps): void
 }
 
 export function renderAppearancePanel(container: HTMLElement, deps: SettingsDeps): void {
+  const ui = createAppearanceUiSync(deps);
   container.appendChild(
     collapsibleSection('appearance-theme', 'Theme', (body) => {
-      renderThemePresetPicker(body, deps);
+      renderThemePresetPicker(body, deps, ui);
     })
   );
   container.appendChild(
     collapsibleSection('appearance-text', 'Text & colors', (body) => {
-      renderThemePanel(body, deps);
+      renderThemePanel(body, deps, ui);
     })
   );
   container.appendChild(
@@ -515,7 +571,7 @@ export function renderAppearancePanel(container: HTMLElement, deps: SettingsDeps
   );
   container.appendChild(
     collapsibleSection('appearance-background', 'Background image', (body) => {
-      renderBackgroundPanel(body, deps);
+      renderBackgroundPanel(body, deps, ui);
     })
   );
 }

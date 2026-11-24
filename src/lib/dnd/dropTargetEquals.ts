@@ -9,7 +9,12 @@ export function gridFolderDropEquals(
   if (a.mode !== b.mode) return false;
 
   if (a.mode === 'newColumn' && b.mode === 'newColumn') {
-    return a.beforeColumnId === b.beforeColumnId && a.lineX === b.lineX;
+    return (
+      a.beforeColumnId === b.beforeColumnId &&
+      a.lineX === b.lineX &&
+      a.lineTop === b.lineTop &&
+      a.lineHeight === b.lineHeight
+    );
   }
 
   if (a.mode === 'into' && b.mode === 'into') {

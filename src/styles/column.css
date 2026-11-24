@@ -175,10 +175,15 @@ body.is-folder-dragging .folder-column-header {
   cursor: grabbing;
 }
 
-.bookmark-item--folder > .bookmark-list {
+.bookmark-item--folder > .folder-item-body > .bookmark-list {
   margin-left: 14px;
   border-left: 1px solid var(--ntp-color-shadow, rgba(255, 255, 255, 0.1));
   padding-left: 8px;
+  min-height: 0;
+}
+
+.bookmark-item--folder:not(.is-collapsed) > .folder-item-body > .bookmark-list,
+.bookmark-item--folder.is-hover-expanded > .folder-item-body > .bookmark-list {
   min-height: 6px;
 }
 
@@ -225,7 +230,7 @@ body.is-folder-dragging .folder-column-header {
 }
 
 .bookmark-link--error {
-  color: #e57373;
+  color: color-mix(in srgb, #ef4444 75%, var(--ntp-color-text, #e8e8f0));
   cursor: not-allowed;
 }
 
@@ -240,9 +245,16 @@ html[data-link-hover-effect='grow'] .bookmarks-grid .column {
   overflow: visible;
 }
 
-html[data-link-hover-effect='grow'] .folder-column-body > .bookmark-list,
-html[data-link-hover-effect='grow'] .folder-item-body > .bookmark-list {
+html[data-link-hover-effect='grow'] .folder-column-body > *,
+html[data-link-hover-effect='grow'] .folder-column-body .bookmark-list,
+html[data-link-hover-effect='grow'] .folder-item-body > * {
   overflow-x: visible;
+  overflow-y: clip;
+}
+
+html[data-link-hover-effect='grow'] .folder-column-block.is-collapsed:not(.is-hover-expanded) .folder-column-body > *,
+html[data-link-hover-effect='grow'] .bookmark-item--folder.is-collapsed:not(.is-hover-expanded) .folder-item-body > * {
+  overflow: hidden;
 }
 
 html[data-link-hover-effect='grow'] .bookmark-item--link {

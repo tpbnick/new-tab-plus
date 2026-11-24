@@ -312,6 +312,11 @@ code {
   cursor: zoom-in;
 }
 
+.screenshot img:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .screenshot figcaption {
   margin-top: 0.6rem;
   font-size: 0.875rem;
@@ -535,6 +540,10 @@ body.lightbox-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .lightbox,
   .lightbox__dialog,
   .lightbox__image,

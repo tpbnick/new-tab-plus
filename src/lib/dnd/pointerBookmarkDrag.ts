@@ -12,11 +12,27 @@ const DRAG_THRESHOLD_PX = FOLDER_DRAG_THRESHOLD_PX;
 const CLASS_DRAGGING = 'folder-column-header--dragging';
 
 let blockNextHeaderClick = false;
+let clearHeaderClickTimer: number | undefined;
+
+function suppressNextHeaderClick(): void {
+  blockNextHeaderClick = true;
+  window.clearTimeout(clearHeaderClickTimer);
+  clearHeaderClickTimer = window.setTimeout(() => {
+    blockNextHeaderClick = false;
+    clearHeaderClickTimer = undefined;
+  }, 0);
+}
+
+function resetHeaderClickSuppression(): void {
+  window.clearTimeout(clearHeaderClickTimer);
+  clearHeaderClickTimer = undefined;
+  blockNextHeaderClick = false;
+}
 
 /** Suppresses the click that follows a completed header drag. */
 export function consumeHeaderClickSuppression(): boolean {
   if (!blockNextHeaderClick) return false;
-  blockNextHeaderClick = false;
+  resetHeaderClickSuppression();
   return true;
 }
 
@@ -24,6 +40,7 @@ type PendingFolderDrag = {
   header: HTMLElement;
   folderId: string;
   sourceGridColumnId: string;
+  pointerId: number;
   startX: number;
   startY: number;
   capturedPointerId?: number;
@@ -65,12 +82,14 @@ export function attachPointerFolderDrag(
     dropLine.hidden = false;
   }
 
-  function showVerticalDropLine(lineX: number) {
+  function showVerticalDropLine(lineX: number, lineTop?: number, lineHeight?: number) {
     const gridRect = gridHost.getBoundingClientRect();
+    const top = lineTop ?? gridRect.top;
+    const height = lineHeight !== undefined && lineHeight > 0 ? lineHeight : gridRect.height;
     dropLine.style.left = `${lineX - 1}px`;
-    dropLine.style.top = `${gridRect.top}px`;
+    dropLine.style.top = `${top}px`;
     dropLine.style.width = '2px';
-    dropLine.style.height = `${gridRect.height}px`;
+    dropLine.style.height = `${height}px`;
     dropLine.hidden = false;
   }
 
@@ -127,7 +146,7 @@ export function attachPointerFolderDrag(
         }
         dndLog('pointer dragover (into column)', resolved);
       } else {
-        showVerticalDropLine(resolved.lineX);
+        showVerticalDropLine(resolved.lineX, resolved.lineTop, resolved.lineHeight);
         dndLog('pointer dragover (new column)', resolved);
       }
     }
@@ -135,8 +154,10 @@ export function attachPointerFolderDrag(
 
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
+    if (pending || dragging) return;
 
-    const header = (e.target as HTMLElement).closest<HTMLElement>('.folder-column-header');
+    const targetEl = e.target instanceof Element ? e.target : null;
+    const header = targetEl?.closest<HTMLElement>('.folder-column-header');
     if (!header || !gridHost.contains(header)) return;
 
     const folderId = header.dataset.folderId;
@@ -148,6 +169,7 @@ export function attachPointerFolderDrag(
       header,
       folderId,
       sourceGridColumnId,
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
     };
@@ -155,9 +177,10 @@ export function attachPointerFolderDrag(
   }
 
   function onPointerMove(e: PointerEvent) {
-    if (!pending && !dragging) return;
+    if (!pending) return;
+    if (e.pointerId !== pending.pointerId) return;
 
-    if (pending && !dragging) {
+    if (!dragging) {
       const dx = e.clientX - pending.startX;
       const dy = e.clientY - pending.startY;
       if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
@@ -165,24 +188,29 @@ export function attachPointerFolderDrag(
       dragging = true;
       document.body.classList.add('is-folder-dragging');
       pending.header.classList.add(CLASS_DRAGGING);
-      pending.header.setPointerCapture(e.pointerId);
-      pending.capturedPointerId = e.pointerId;
+      try {
+        pending.header.setPointerCapture(e.pointerId);
+        pending.capturedPointerId = e.pointerId;
+      } catch {
+        /* header may be detached by an async DOM refresh */
+      }
       dndLog('pointer folder drag started', {
         folderId: pending.folderId,
         sourceGridColumnId: pending.sourceGridColumnId,
       });
     }
 
-    if (!dragging || !pending) return;
-
     e.preventDefault();
     updateFolderDropTarget(e.clientX, e.clientY, pending);
   }
 
   function onPointerUp(e: PointerEvent) {
-    const hadValidDrop = !!(dragging && pending && hoverFolderTarget);
+    if (!pending) return;
+    if (e.pointerId !== pending.pointerId) return;
 
-    if (dragging && pending) {
+    const wasDragging = dragging;
+
+    if (dragging) {
       if (hoverFolderTarget) {
         e.preventDefault();
         e.stopPropagation();
@@ -197,8 +225,13 @@ export function attachPointerFolderDrag(
       }
     }
 
-    releaseCapture();
-    if (hadValidDrop) blockNextHeaderClick = true;
+    if (wasDragging) suppressNextHeaderClick();
+    cleanup();
+  }
+
+  function onPointerCancel(e: PointerEvent) {
+    if (!pending) return;
+    if (e.pointerId !== pending.pointerId) return;
     cleanup();
   }
 
@@ -209,15 +242,16 @@ export function attachPointerFolderDrag(
   gridHost.addEventListener('pointerdown', onPointerDown);
   document.addEventListener('pointermove', onPointerMove);
   document.addEventListener('pointerup', onPointerUp);
-  document.addEventListener('pointercancel', onPointerUp);
+  document.addEventListener('pointercancel', onPointerCancel);
   document.addEventListener('keydown', onKeyDown);
 
   return () => {
     gridHost.removeEventListener('pointerdown', onPointerDown);
     document.removeEventListener('pointermove', onPointerMove);
     document.removeEventListener('pointerup', onPointerUp);
-    document.removeEventListener('pointercancel', onPointerUp);
+    document.removeEventListener('pointercancel', onPointerCancel);
     document.removeEventListener('keydown', onKeyDown);
+    resetHeaderClickSuppression();
     cleanup();
     dropLine.remove();
   };

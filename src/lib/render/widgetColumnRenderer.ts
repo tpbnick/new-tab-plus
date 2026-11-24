@@ -58,15 +58,24 @@ export function renderWidgetColumn(
 
   const mergedSettings: Record<string, unknown> = { ...definition.defaultSettings, ...meta.settings };
   let instanceRef: WidgetInstance | null = null;
+  let saveSeq = 0;
 
   const ctx: WidgetContext = {
     instanceId: meta.instanceId,
+    variant,
     getSetting: <T>(key: string) => mergedSettings[key] as T,
     saveSettings: async (partial) => {
+      const seq = ++saveSeq;
       const previous = { ...mergedSettings };
       Object.assign(mergedSettings, partial);
-      const saved = await callbacks.onSettingsSaved(meta.instanceId, partial);
-      if (saved) return;
+      let saved = false;
+      try {
+        saved = await callbacks.onSettingsSaved(meta.instanceId, partial);
+      } catch (err) {
+        console.error(`[new-tab-plus] failed to save widget settings for "${meta.widgetId}"`, err);
+        saved = false;
+      }
+      if (saved || seq !== saveSeq) return;
 
       for (const key of Object.keys(mergedSettings)) {
         if (!(key in previous)) delete mergedSettings[key];
@@ -78,7 +87,12 @@ export function renderWidgetColumn(
 
   const instance = definition.create(body, mergedSettings, ctx);
   instanceRef = instance;
-  void instance.render();
+  const renderResult = instance.render();
+  if (renderResult && typeof renderResult.catch === 'function') {
+    renderResult.catch((err) => {
+      console.error(`[new-tab-plus] failed to render widget "${meta.widgetId}"`, err);
+    });
+  }
 
   return { element: wrapper, instance };
 }

@@ -203,13 +203,18 @@ void (async () => {
     await moveAutomaticCloudCopyToLocal();
     const local = await getOptionsLocal();
     const synced = await getOptionsSynced();
-    const { layout } = await loadLayout();
+    const { layout, hadStoredLayout } = await loadLayout();
     appState.layoutState = layout;
     appState.optionsState = synced;
     appState.optionsLocalState = local;
     applyLiveTheme();
     applyLiveCustomCss();
-    await render('full');
+    await render('full', {
+      layout,
+      hadStoredLayout,
+      optionsSynced: synced,
+      optionsLocal: local,
+    });
     void runUpdateCheck(updateCheckContext);
   } catch (err) {
     console.error('[new-tab-plus] initial render failed', err);

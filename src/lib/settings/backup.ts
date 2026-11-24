@@ -1,6 +1,7 @@
 import { mergeOptionsState, SCHEMA_VERSION, type LayoutState, type OptionsLocalState, type OptionsState } from '../storage/schema';
 import { migrateAndNormalizeLayout } from '../storage/storage';
 import { sanitizeLayoutState } from '../storage/layoutNormalize';
+import { isAllowedDataImageUrl, isSafeBackgroundUrl } from '../urlSafety';
 import type { SettingsDeps } from './deps';
 
 type SettingsBackupPayload = {
@@ -60,30 +61,49 @@ export function parseSettingsBackupJson(
   }
 
   const layoutPartial = rawLayout as Partial<LayoutState>;
-  if (typeof layoutPartial.schemaVersion !== 'number' || !Array.isArray(layoutPartial.columns)) {
+  if (
+    typeof layoutPartial.schemaVersion !== 'number' ||
+    !Number.isFinite(layoutPartial.schemaVersion) ||
+    !Array.isArray(layoutPartial.columns)
+  ) {
     return { ok: false, error: 'Backup layout must include schemaVersion and columns.' };
   }
 
   try {
     const optionsLocalPartial = rawOptionsLocal as Partial<OptionsLocalState>;
+    const mergedOptions = mergeOptionsState(rawOptions as Partial<OptionsState>);
+    if (mergedOptions.background.imageUrl && !isSafeBackgroundUrl(mergedOptions.background.imageUrl)) {
+      mergedOptions.background.imageUrl = '';
+    }
+
+    const rawUploadedBg =
+      typeof optionsLocalPartial.uploadedBackgroundImage === 'string'
+        ? optionsLocalPartial.uploadedBackgroundImage
+        : '';
+    const uploadedBackgroundImage =
+      rawUploadedBg && isAllowedDataImageUrl(rawUploadedBg) ? rawUploadedBg : '';
+
+    const localSchemaVersion =
+      typeof optionsLocalPartial.schemaVersion === 'number' &&
+      Number.isFinite(optionsLocalPartial.schemaVersion)
+        ? optionsLocalPartial.schemaVersion
+        : SCHEMA_VERSION;
+
     return {
       ok: true,
       backup: {
         layout: migrateAndNormalizeLayout(rawLayout),
-        options: mergeOptionsState(rawOptions as Partial<OptionsState>),
+        options: mergedOptions,
         optionsLocal: {
-          schemaVersion: optionsLocalPartial.schemaVersion ?? SCHEMA_VERSION,
+          schemaVersion: localSchemaVersion,
           customCss:
             typeof optionsLocalPartial.customCss === 'string' ? optionsLocalPartial.customCss : '',
           dismissedUpdateVersion:
             typeof optionsLocalPartial.dismissedUpdateVersion === 'string'
               ? optionsLocalPartial.dismissedUpdateVersion
               : '',
-          syncToCloud: optionsLocalPartial.syncToCloud === true,
-          uploadedBackgroundImage:
-            typeof optionsLocalPartial.uploadedBackgroundImage === 'string'
-              ? optionsLocalPartial.uploadedBackgroundImage
-              : '',
+          syncToCloud: false,
+          uploadedBackgroundImage,
         },
       },
     };
@@ -107,7 +127,6 @@ export function applySettingsBackupFromJson(deps: SettingsDeps, json: string): b
   deps.setOptionsLocalDirect(parsed.backup.optionsLocal);
   deps.setOptionsDirect(parsed.backup.options);
   deps.setLayoutDirect(parsed.backup.layout);
-  deps.rerenderPage();
   deps.refreshPanel();
   return true;
 }
@@ -121,5 +140,5 @@ export function downloadSettingsBackup(deps: SettingsDeps, textarea: HTMLTextAre
   link.href = url;
   link.download = 'new-tab-plus-backup.json';
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

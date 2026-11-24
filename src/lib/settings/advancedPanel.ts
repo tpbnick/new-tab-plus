@@ -100,6 +100,8 @@ function renderImportExportPanel(container: HTMLElement, deps: SettingsDeps): vo
   container.append(help, jsonWrap, fileInput, actions);
 }
 
+let pendingCloudStatus: string | null = null;
+
 function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void {
   const help = document.createElement('p');
   help.className = 'options-help';
@@ -109,6 +111,10 @@ function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void 
   const status = document.createElement('p');
   status.className = 'options-help';
   status.setAttribute('role', 'status');
+  if (pendingCloudStatus) {
+    status.textContent = pendingCloudStatus;
+    pendingCloudStatus = null;
+  }
 
   const actions = document.createElement('div');
   actions.className = 'options-actions';
@@ -160,10 +166,15 @@ function renderCloudSyncPanel(container: HTMLElement, deps: SettingsDeps): void 
             'Nothing is saved to your Google account yet. On the other browser, choose Save to cloud first.';
           return;
         }
+        pendingCloudStatus = 'Restored the layout and settings saved to your Google account.';
         deps.rerenderPage();
         deps.refreshPanel();
-        status.textContent = 'Restored the layout and settings saved to your Google account.';
+        if (pendingCloudStatus) {
+          status.textContent = pendingCloudStatus;
+          pendingCloudStatus = null;
+        }
       } catch (err) {
+        pendingCloudStatus = null;
         console.error('[new-tab-plus] failed to restore layout from cloud', err);
         status.textContent = 'Could not restore from cloud. Check that Chrome sync is on.';
       } finally {
@@ -228,13 +239,13 @@ export function renderAdvancedPanel(container: HTMLElement, deps: SettingsDeps):
       };
 
       const syncCustomCss = (): void => {
+        window.clearTimeout(validateTimer);
         const braceError = checkBalancedBraces(textarea.value);
         if (braceError) {
           showValidationError(braceError);
           return;
         }
 
-        window.clearTimeout(validateTimer);
         validateTimer = window.setTimeout(applyValidCss, 400);
       };
 
@@ -243,7 +254,10 @@ export function renderAdvancedPanel(container: HTMLElement, deps: SettingsDeps):
         window.clearTimeout(validateTimer);
         applyValidCss();
       });
-      applyValidCss();
+      const initialValidation = validateCustomCss(textarea.value);
+      if (!initialValidation.ok) {
+        showValidationError(initialValidation.message);
+      }
       body.append(textarea, error);
     })
   );

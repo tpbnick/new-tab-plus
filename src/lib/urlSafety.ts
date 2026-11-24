@@ -30,16 +30,27 @@ export function isSafeBackgroundUrl(url: string): boolean {
   return safeBackgroundCssUrl(url) !== null;
 }
 
-function isAllowedDataImageUrl(parsed: URL): boolean {
-  const mime = parsed.pathname.split(';')[0]?.toLowerCase() ?? '';
-  return mime.startsWith('image/') && !mime.includes('svg');
+const RASTER_IMAGE_MIME_RE = /^image\/[a-z0-9.+-]+$/;
+
+function isAllowedDataImageHref(href: string): boolean {
+  const commaIdx = href.indexOf(',');
+  if (commaIdx === -1) return false;
+  const header = href.slice('data:'.length, commaIdx).toLowerCase();
+  const mime = header.split(';')[0]?.trim() ?? '';
+  return RASTER_IMAGE_MIME_RE.test(mime) && !mime.includes('svg');
+}
+
+export function isAllowedDataImageUrl(url: string): boolean {
+  const parsed = parseSafeUrl(url);
+  if (!parsed || parsed.protocol !== 'data:') return false;
+  return isAllowedDataImageHref(parsed.href);
 }
 
 /** Canonical href for a background image, or null when the URL is unsafe. */
 export function safeBackgroundCssUrl(url: string): string | null {
   const parsed = parseSafeUrl(url);
   if (!parsed || !isAllowedProtocol(parsed.protocol, 'background')) return null;
-  if (parsed.protocol === 'data:' && !isAllowedDataImageUrl(parsed)) return null;
+  if (parsed.protocol === 'data:' && !isAllowedDataImageHref(parsed.href)) return null;
   return parsed.href;
 }
 

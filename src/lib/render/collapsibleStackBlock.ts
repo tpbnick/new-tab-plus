@@ -31,6 +31,9 @@ export function renderCollapsibleStackBlock(
 
   const body = document.createElement('div');
   body.className = 'folder-column-body';
+  if (options.collapsed) {
+    body.setAttribute('inert', '');
+  }
   body.appendChild(bodyContent);
   block.appendChild(body);
   return block;

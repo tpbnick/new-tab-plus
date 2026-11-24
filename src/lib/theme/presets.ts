@@ -13,7 +13,7 @@ export interface ThemePreset {
 }
 
 const SYSTEM_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-const MONO_FONT = '"JetBrains Mono", Consolas, "Courier New", monospace';
+const MONO_FONT = '"JetBrains Mono", Consolas, monospace';
 
 export const THEME_PRESET_CUSTOM_ID = 'custom';
 

@@ -262,7 +262,17 @@ async function safeLoadSpecialSection(
   return loadSpecialSectionCached(meta, { bypassCache, ttlMs });
 }
 
-export async function render(scope: RenderScope = 'full'): Promise<void> {
+export interface PreloadedRenderData {
+  layout: LayoutState;
+  hadStoredLayout: boolean;
+  optionsSynced: OptionsState;
+  optionsLocal: OptionsLocalState;
+}
+
+export async function render(
+  scope: RenderScope = 'full',
+  preloaded?: PreloadedRenderData
+): Promise<void> {
   const generation = ++appState.renderGeneration;
   const app = document.getElementById('app');
   if (!app) return;
@@ -279,7 +289,12 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
     let optionsSynced: OptionsState;
     let optionsLocal: OptionsLocalState;
 
-    if (skipOptionsFetch) {
+    if (preloaded) {
+      storedLayout = preloaded.layout;
+      layoutHadStoredCopy = preloaded.hadStoredLayout;
+      optionsSynced = preloaded.optionsSynced;
+      optionsLocal = preloaded.optionsLocal;
+    } else if (skipOptionsFetch) {
       // Reload from storage when the tab has no pending local edits — otherwise a tab left
       // open for a long time can reconcile and persist stale column order over newer sync data.
       if (appState.layoutDirty) {
@@ -301,7 +316,7 @@ export async function render(scope: RenderScope = 'full'): Promise<void> {
     }
     if (generation !== appState.renderGeneration) return;
 
-    if (!skipOptionsFetch) {
+    if (!skipOptionsFetch && !preloaded) {
       appState.optionsState = optionsSynced;
       appState.optionsLocalState = optionsLocal;
       applyLiveTheme();

@@ -14,7 +14,7 @@ export function applyTheme(
   background: OptionsState['background'] = { imageUrl: '', imageOpacityPct: 100, size: 'cover', align: 'center' },
   root: HTMLElement = document.documentElement
 ): void {
-  loadFontForFamily(theme.fontFamily);
+  loadFontForFamily(theme.fontFamily, root.ownerDocument);
   const textColor = resolveEffectiveTextColor(theme, background);
   const textTokens = resolveTextColorTokens(textColor, theme.textOpacityPct);
   root.style.setProperty('--ntp-font-family', theme.fontFamily);
@@ -101,7 +101,7 @@ export function applyBackground(
 }
 
 export function applyCustomCss(css: string, doc: Document = document): void {
-  const validation = validateCustomCss(css);
+  const validation = validateCustomCss(css, doc);
   let styleEl = doc.getElementById(CUSTOM_CSS_STYLE_ID) as HTMLStyleElement | null;
   if (!validation.ok || !css.trim()) {
     styleEl?.remove();

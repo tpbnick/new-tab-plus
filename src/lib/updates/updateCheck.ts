@@ -1,11 +1,13 @@
 import { APP_VERSION, GITHUB_REPO_URL } from '../about/appMeta.generated';
 import { hideUpdateBanner, showUpdateBanner } from '../ui/updateBanner';
 import { isVersionNewer } from './compareVersions';
-import { fetchLatestGithubRelease } from './githubRelease';
+import { fetchLatestGithubRelease, type GithubRelease } from './githubRelease';
 
 export { hideUpdateBanner } from '../ui/updateBanner';
 
 const CHECK_CACHE_MS = 6 * 60 * 60 * 1000;
+const FAILURE_BACKOFF_MS = 15 * 60 * 1000;
+const UPDATE_CHECK_CACHE_KEY = 'updateCheckCache';
 
 export interface UpdateCheckContext {
   getCheckEnabled: () => boolean;
@@ -13,39 +15,107 @@ export interface UpdateCheckContext {
   setDismissedVersion: (version: string) => Promise<void>;
 }
 
-let cachedRelease:
-  | {
-      fetchedAt: number;
-      release: NonNullable<Awaited<ReturnType<typeof fetchLatestGithubRelease>>>;
-    }
-  | null = null;
+interface UpdateCheckCacheEntry {
+  fetchedAt: number;
+  release: GithubRelease | null;
+  failed: boolean;
+}
 
+let cachedEntry: UpdateCheckCacheEntry | null = null;
 let checkInFlight: Promise<void> | null = null;
 let queuedForce = false;
 
-function shouldUseCache(): boolean {
-  if (!cachedRelease) return false;
-  return Date.now() - cachedRelease.fetchedAt < CHECK_CACHE_MS;
+function getLocalStorage(): chrome.storage.StorageArea | null {
+  return typeof chrome !== 'undefined' &&
+    chrome?.storage?.local &&
+    typeof chrome.storage.local.get === 'function' &&
+    typeof chrome.storage.local.set === 'function'
+    ? chrome.storage.local
+    : null;
 }
 
-async function loadLatestRelease(
-  force = false
-): Promise<Awaited<ReturnType<typeof fetchLatestGithubRelease>>> {
-  if (!force && shouldUseCache()) {
-    return cachedRelease!.release;
+function parseCacheEntry(raw: unknown): UpdateCheckCacheEntry | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.fetchedAt !== 'number' || !Number.isFinite(obj.fetchedAt)) return null;
+  if (typeof obj.failed !== 'boolean') return null;
+
+  let release: GithubRelease | null = null;
+  if (obj.release !== null && obj.release !== undefined) {
+    if (
+      typeof obj.release !== 'object' ||
+      Array.isArray(obj.release) ||
+      typeof (obj.release as Record<string, unknown>).version !== 'string' ||
+      typeof (obj.release as Record<string, unknown>).url !== 'string'
+    ) {
+      return null;
+    }
+    release = {
+      version: (obj.release as { version: string }).version,
+      url: (obj.release as { url: string }).url,
+    };
+  }
+
+  return { fetchedAt: obj.fetchedAt, release, failed: obj.failed };
+}
+
+async function readCachedEntryFromStorage(
+  storage: chrome.storage.StorageArea
+): Promise<UpdateCheckCacheEntry | null> {
+  try {
+    const result = await storage.get(UPDATE_CHECK_CACHE_KEY);
+    const parsed = parseCacheEntry(result?.[UPDATE_CHECK_CACHE_KEY]);
+    if (parsed) {
+      if (!cachedEntry || parsed.fetchedAt >= cachedEntry.fetchedAt) {
+        cachedEntry = parsed;
+      }
+      return cachedEntry;
+    }
+  } catch {
+    /* fall back to in-memory cache */
+  }
+  return cachedEntry;
+}
+
+async function writeCachedEntry(entry: UpdateCheckCacheEntry): Promise<void> {
+  cachedEntry = entry;
+  const storage = getLocalStorage();
+  if (!storage) return;
+  try {
+    await storage.set({ [UPDATE_CHECK_CACHE_KEY]: entry });
+  } catch {
+    /* keep in-memory cache */
+  }
+}
+
+function isCacheValid(entry: UpdateCheckCacheEntry | null): entry is UpdateCheckCacheEntry {
+  if (!entry) return false;
+  const age = Date.now() - entry.fetchedAt;
+  if (age < 0) return false;
+  const ttl = entry.failed ? FAILURE_BACKOFF_MS : CHECK_CACHE_MS;
+  return age < ttl;
+}
+
+async function loadLatestRelease(force = false): Promise<GithubRelease | null> {
+  if (!force) {
+    const storage = getLocalStorage();
+    const entry = storage ? await readCachedEntryFromStorage(storage) : cachedEntry;
+    if (isCacheValid(entry)) {
+      return entry.failed ? null : entry.release;
+    }
   }
 
   const release = await fetchLatestGithubRelease(GITHUB_REPO_URL);
   if (release) {
-    cachedRelease = { fetchedAt: Date.now(), release };
+    await writeCachedEntry({ fetchedAt: Date.now(), release, failed: false });
+    return release;
   }
-  return release;
+
+  await writeCachedEntry({ fetchedAt: Date.now(), release: null, failed: true });
+  return null;
 }
 
-function applyUpdateCheckResult(
-  ctx: UpdateCheckContext,
-  release: NonNullable<Awaited<ReturnType<typeof fetchLatestGithubRelease>>>
-): void {
+function applyUpdateCheckResult(ctx: UpdateCheckContext, release: GithubRelease): void {
   if (!ctx.getCheckEnabled()) {
     hideUpdateBanner();
     return;
@@ -65,7 +135,7 @@ function applyUpdateCheckResult(
     releaseUrl: release.url,
     latestVersion: release.version,
     onDismiss: () => {
-      void ctx.setDismissedVersion(release.version);
+      void ctx.setDismissedVersion(release.version).catch(() => {});
     },
   });
 }
@@ -86,9 +156,12 @@ export async function runUpdateCheck(ctx: UpdateCheckContext, opts: { force?: bo
   if (checkInFlight) {
     if (opts.force) queuedForce = true;
     await checkInFlight;
-    const force = queuedForce;
+    if (!queuedForce) {
+      if (checkInFlight) await checkInFlight;
+      return;
+    }
     queuedForce = false;
-    return runUpdateCheck(ctx, force ? { force: true } : {});
+    return runUpdateCheck(ctx, { force: true });
   }
 
   checkInFlight = (async () => {
@@ -116,7 +189,7 @@ export function initUpdateChecker(ctx: UpdateCheckContext): () => void {
 
 /** Resets module-level cache/concurrency state (for unit tests). */
 export function resetUpdateCheckStateForTests(): void {
-  cachedRelease = null;
+  cachedEntry = null;
   checkInFlight = null;
   queuedForce = false;
 }

@@ -10,6 +10,16 @@ import type { ScheduleRender } from './types';
 /** Settings captured before the first unsaved edit in the current debounce. */
 const settingsBeforePendingSave = new Map<string, Record<string, unknown>>();
 
+export function clearPendingWidgetSettingsSnapshot(widgetIds?: Iterable<string>): void {
+  if (!widgetIds) {
+    settingsBeforePendingSave.clear();
+    return;
+  }
+  for (const id of widgetIds) {
+    settingsBeforePendingSave.delete(id);
+  }
+}
+
 function findWidgetById(widgetId: string): WidgetColumnMeta | undefined {
   return appState.layoutState.columns.find(
     (c): c is WidgetColumnMeta => c.type === 'widget' && c.widgetId === widgetId

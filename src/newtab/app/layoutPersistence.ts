@@ -26,6 +26,7 @@ import { applyCustomCss } from '../../lib/theme/themeEngine';
 import { applyCollapsedState } from '../../lib/ui/collapsible';
 import { appState, markLayoutDirty } from './state';
 import { applyLiveTheme } from './themeLive';
+import { clearPendingWidgetSettingsSnapshot } from './widgetSettings';
 
 let folderStateBeforeFlush: Record<string, FolderUiState> | null = null;
 
@@ -150,8 +151,10 @@ export async function flushPendingSavesAsync(
   window.clearTimeout(appState.saveOptionsLocalTimer);
   window.clearTimeout(appState.saveWidgetSettingsTimer);
   window.clearTimeout(appState.saveFolderStateTimer);
+  appState.saveLayoutTimer = undefined;
   appState.saveOptionsTimer = undefined;
   appState.saveOptionsLocalTimer = undefined;
+  appState.saveWidgetSettingsTimer = undefined;
   appState.saveFolderStateTimer = undefined;
   const folderSnapshot = folderStateBeforeFlush;
   folderStateBeforeFlush = null;
@@ -166,6 +169,7 @@ export async function flushPendingSavesAsync(
           for (const widgetId of widgetIds) {
             appState.pendingWidgetSettingsSaves.delete(widgetId);
           }
+          clearPendingWidgetSettingsSnapshot(widgetIds);
         })
         .catch((err) => {
           if (folderSnapshot) {
@@ -199,7 +203,13 @@ export function setLayoutDirect(
   newLayout: LayoutState,
   persistAndRenderLayout: () => Promise<void>
 ): void {
+  window.clearTimeout(appState.saveLayoutTimer);
+  window.clearTimeout(appState.saveFolderStateTimer);
+  appState.saveLayoutTimer = undefined;
+  appState.saveFolderStateTimer = undefined;
+  folderStateBeforeFlush = null;
   appState.layoutState = newLayout;
+  appState.cachedTopBarKey = '';
   markLayoutDirty();
   void persistAndRenderLayout();
 }
@@ -208,18 +218,23 @@ export function setOptionsDirect(
   newOptions: OptionsState,
   handleRemoteOptionsChange: (previous: OptionsState) => void
 ): void {
+  window.clearTimeout(appState.saveOptionsTimer);
+  appState.saveOptionsTimer = undefined;
   const previous = appState.optionsState;
-  appState.optionsState = mergeOptionsState(newOptions);
+  const merged = mergeOptionsState(newOptions);
+  appState.optionsState = merged;
   applyLiveTheme();
-  void setOptionsSynced(appState.optionsState).catch((err) => {
-    console.error('[new-tab-plus] failed to save options', err);
-    showSaveError('Could not save settings. Check Chrome sync storage space.');
-  });
+  void enqueueLayoutTask(
+    () => setOptionsSynced(merged),
+    'Could not save settings. Check Chrome sync storage space.'
+  );
   handleRemoteOptionsChange(previous);
 }
 
 export function setOptionsLocalDirect(newOptionsLocal: OptionsLocalState): void {
-  appState.optionsLocalState = {
+  window.clearTimeout(appState.saveOptionsLocalTimer);
+  appState.saveOptionsLocalTimer = undefined;
+  const next: OptionsLocalState = {
     ...appState.optionsLocalState,
     ...newOptionsLocal,
     customCss: newOptionsLocal.customCss,
@@ -227,12 +242,13 @@ export function setOptionsLocalDirect(newOptionsLocal: OptionsLocalState): void 
     syncToCloud: newOptionsLocal.syncToCloud,
     uploadedBackgroundImage: newOptionsLocal.uploadedBackgroundImage,
   };
-  applyCustomCss(appState.optionsLocalState.customCss);
+  appState.optionsLocalState = next;
+  applyCustomCss(next.customCss);
   applyLiveTheme();
-  void setOptionsLocal(appState.optionsLocalState).catch((err) => {
-    console.error('[new-tab-plus] failed to save local options', err);
-    showSaveError('Could not save local settings.');
-  });
+  void enqueueLayoutTask(
+    () => setOptionsLocal(next),
+    'Could not save local settings.'
+  );
 }
 
 export async function saveLayoutToCloud(): Promise<void> {
@@ -253,6 +269,11 @@ export async function restoreLayoutFromCloud(): Promise<boolean> {
   const layout = await setLayoutLocal(
     layoutFromPortableBookmarks(snapshot.layout, pathToId, collectBookmarkIds(tree))
   );
+  window.clearTimeout(appState.saveLayoutTimer);
+  window.clearTimeout(appState.saveFolderStateTimer);
+  appState.saveLayoutTimer = undefined;
+  appState.saveFolderStateTimer = undefined;
+  folderStateBeforeFlush = null;
   appState.layoutState = layout;
   appState.layoutDirty = false;
   appState.cachedTopBarKey = '';
@@ -260,7 +281,7 @@ export async function restoreLayoutFromCloud(): Promise<boolean> {
   if (snapshot.options) {
     const next = mergeOptionsState(snapshot.options);
     const currentUrl = appState.optionsState.background.imageUrl;
-    if (currentUrl.startsWith('data:') && !next.background.imageUrl.startsWith('data:')) {
+    if (/^data:/i.test(currentUrl.trim()) && !/^data:/i.test(next.background.imageUrl.trim())) {
       next.background.imageUrl = currentUrl;
     }
     appState.optionsState = next;
@@ -272,6 +293,11 @@ export async function restoreLayoutFromCloud(): Promise<boolean> {
 }
 
 export async function resetBookmarkLayout(persistAndRenderLayout: () => Promise<void>): Promise<void> {
+  window.clearTimeout(appState.saveLayoutTimer);
+  window.clearTimeout(appState.saveFolderStateTimer);
+  appState.saveLayoutTimer = undefined;
+  appState.saveFolderStateTimer = undefined;
+  folderStateBeforeFlush = null;
   const tree = await chrome.bookmarks.getTree();
   appState.layoutState = resetBookmarkGridLayout(appState.layoutState, tree);
   markLayoutDirty();

@@ -50,17 +50,46 @@ describe('resolveRecentlyClosedUrl', () => {
 });
 
 describe('getRecentlyClosed', () => {
-  it('includes tabs restorable by sessionId when url and title are missing', async () => {
+  it('skips untitled tabs with missing URLs while keeping titled tabs restorable by sessionId', async () => {
     vi.stubGlobal('chrome', {
       sessions: {
         getRecentlyClosed: vi.fn().mockResolvedValue([
-          { tab: { sessionId: 'sess-1', url: undefined, title: undefined } },
+          { tab: { sessionId: 'sess-blank', url: undefined, title: undefined } },
+          { tab: { sessionId: 'sess-untitled', url: '', title: 'Untitled' } },
+          { tab: { sessionId: 'sess-titled', url: undefined, title: 'GitHub' } },
         ]),
       },
     });
 
     await expect(getRecentlyClosed()).resolves.toEqual([
-      { title: 'Closed tab', url: '', sessionId: 'sess-1' },
+      { title: 'GitHub', url: '', sessionId: 'sess-titled' },
+    ]);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('skips closed windows without a sessionId', async () => {
+    vi.stubGlobal('chrome', {
+      sessions: {
+        getRecentlyClosed: vi.fn().mockResolvedValue([
+          {
+            window: {
+              sessionId: undefined,
+              tabs: [{ title: 'Docs', url: 'https://example.com' }],
+            },
+          },
+          {
+            window: {
+              sessionId: 'win-1',
+              tabs: [{ title: 'Docs', url: 'https://example.com' }],
+            },
+          },
+        ]),
+      },
+    });
+
+    await expect(getRecentlyClosed()).resolves.toEqual([
+      { title: 'Window (1 tab)', url: 'https://example.com', sessionId: 'win-1' },
     ]);
 
     vi.unstubAllGlobals();

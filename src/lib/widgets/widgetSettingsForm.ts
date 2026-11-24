@@ -31,6 +31,9 @@ export function appendWidgetSettingsForm(
       );
     } else if (field.type === 'number') {
       input = createNumberInput(Number(currentValue ?? 0), (value) => onSave({ [field.key]: value }), {
+        min: field.min,
+        max: field.max,
+        step: field.step,
         event: 'change',
       });
     } else if (field.type === 'color') {

@@ -7,6 +7,7 @@ function getTheme() {
 }
 
 function updateToggle() {
+  if (!toggleBtn) return;
   const theme = getTheme();
   const next = theme === 'dark' ? 'light' : 'dark';
   toggleBtn.dataset.theme = theme;
@@ -15,7 +16,11 @@ function updateToggle() {
 
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem(THEME_KEY, theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Ignore storage access errors (e.g. restricted privacy modes).
+  }
   updateToggle();
 }
 

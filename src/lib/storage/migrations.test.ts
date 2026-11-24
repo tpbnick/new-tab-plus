@@ -64,4 +64,28 @@ describe('runMigrations', () => {
     });
     expect(migrated.columns.find((c) => c.id === 'special:mostVisited')?.type).toBe('specialSection');
   });
+
+  it('skips non-object column entries safely during v1 to v3 migration', () => {
+    const payload = {
+      schemaVersion: 1,
+      columns: [
+        null,
+        'corrupt',
+        { id: 'bm:10', type: 'bookmarkFolder', order: 0, enabled: true, bookmarkId: '10' },
+        { type: 'bookmarkFolder', order: 1, enabled: true, bookmarkId: '11' },
+      ],
+      folderState: {},
+    };
+
+    const migrated = runMigrations(payload, 3) as {
+      schemaVersion: number;
+      columns: Array<{ type: string; id?: string; stack?: string[] }>;
+    };
+
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.columns.find((c) => c.id === 'grid:10')).toMatchObject({
+      type: 'bookmarkGrid',
+      stack: ['10'],
+    });
+  });
 });

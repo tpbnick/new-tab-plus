@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BookmarkGridColumnMeta, ColumnEntry } from '../../lib/storage/schema';
 import { createDefaultLayoutState } from '../../lib/storage/schema';
-import { handleGridFolderNewColumn } from './gridFolderDrop';
+import { handleGridFolderNewColumn, handleStackKeyboardMove } from './gridFolderDrop';
 import { appState } from './state';
 
 function grid(id: string, stack: string[], order: number): BookmarkGridColumnMeta {
@@ -139,5 +139,31 @@ describe('handleGridFolderNewColumn', () => {
 
     expect(persisted).toBe(true);
     expect(idsInOrder(appState.layoutState.columns)).toEqual(['grid:30', 'grid:10']);
+  });
+
+  it('skips disabled grid columns during handleStackKeyboardMove', async () => {
+    appState.layoutState = {
+      ...createDefaultLayoutState(),
+      columns: [
+        grid('grid:10', ['10'], 0),
+        {
+          id: 'grid:special:mostVisited',
+          type: 'bookmarkGrid',
+          order: 1,
+          enabled: false,
+          stack: ['special:mostVisited'],
+        },
+        grid('grid:20', ['20', '21'], 2),
+      ],
+    };
+
+    await handleStackKeyboardMove('21', 'grid:20', 'left', async () => {});
+
+    const targetCol = appState.layoutState.columns.find((c) => c.id === 'grid:10');
+    const disabledCol = appState.layoutState.columns.find((c) => c.id === 'grid:special:mostVisited');
+    expect(targetCol?.type === 'bookmarkGrid' ? targetCol.stack : []).toEqual(['10', '21']);
+    expect(disabledCol?.type === 'bookmarkGrid' ? disabledCol.stack : []).toEqual([
+      'special:mostVisited',
+    ]);
   });
 });

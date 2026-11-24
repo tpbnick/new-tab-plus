@@ -3,6 +3,8 @@ export interface FontFamilyOption {
   value: string;
   /** When set, the font is fetched from Google Fonts on selection. */
   googleFont?: string;
+  /** Semicolon-delimited Google Fonts weights (defaults to 300..800). */
+  googleFontWeights?: string;
 }
 
 /** Popular font stacks for the theme picker. Each value is a full CSS font-family list. */
@@ -12,6 +14,7 @@ export const FONT_FAMILY_OPTIONS: FontFamilyOption[] = [
     label: 'Atkinson Hyperlegible',
     value: '"Atkinson Hyperlegible", system-ui, sans-serif',
     googleFont: 'Atkinson Hyperlegible',
+    googleFontWeights: '400;700',
   },
   { label: 'Inter', value: 'Inter, system-ui, sans-serif', googleFont: 'Inter' },
   { label: 'Roboto', value: 'Roboto, Arial, sans-serif', googleFont: 'Roboto' },

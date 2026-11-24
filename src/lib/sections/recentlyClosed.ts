@@ -63,11 +63,13 @@ export async function getRecentlyClosed(itemCount = 8): Promise<SectionItem[]> {
       if (!session.tab.sessionId) continue;
 
       const url = resolveRecentlyClosedUrl(session.tab);
-      if (isHiddenRecentlyClosedUrl(url)) continue;
+      if (shouldSkipRecentlyClosedEntry(session.tab.title, url)) continue;
 
       const title = session.tab.title?.trim() || url || 'Closed tab';
       items.push({ title, url, sessionId: session.tab.sessionId });
     } else if (session.window) {
+      if (!session.window.sessionId) continue;
+
       const tabs = session.window.tabs ?? [];
       if (tabs.length === 0) continue;
       if (tabs.every((tab) => shouldSkipRecentlyClosedEntry(tab.title, resolveRecentlyClosedUrl(tab)))) {

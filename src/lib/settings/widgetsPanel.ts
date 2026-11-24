@@ -33,7 +33,9 @@ function appendTopBarOrderItem(
   list: HTMLElement,
   itemId: TopBarItemId,
   deps: SettingsDeps,
-  disabled: boolean
+  disabled: boolean,
+  canMoveUp: boolean,
+  canMoveDown: boolean
 ): void {
   const item = document.createElement('div');
   item.className = disabled
@@ -47,12 +49,15 @@ function appendTopBarOrderItem(
   const actions = document.createElement('div');
   actions.className = 'options-topbar-order__actions';
 
+  const sameGroup = (id: TopBarItemId): boolean => isTopBarOrderItemEnabled(deps, id) === !disabled;
+
   const upBtn = document.createElement('button');
   upBtn.type = 'button';
   upBtn.textContent = '↑';
   upBtn.title = 'Move left';
+  upBtn.disabled = !canMoveUp;
   upBtn.addEventListener('click', () => {
-    deps.options.topBar.itemOrder = moveTopBarItem(deps.options.topBar.itemOrder, itemId, -1);
+    deps.options.topBar.itemOrder = moveTopBarItem(deps.options.topBar.itemOrder, itemId, -1, sameGroup);
     deps.saveOptionsNow();
     deps.rerenderPage();
     deps.refreshPanel();
@@ -62,8 +67,9 @@ function appendTopBarOrderItem(
   downBtn.type = 'button';
   downBtn.textContent = '↓';
   downBtn.title = 'Move right';
+  downBtn.disabled = !canMoveDown;
   downBtn.addEventListener('click', () => {
-    deps.options.topBar.itemOrder = moveTopBarItem(deps.options.topBar.itemOrder, itemId, 1);
+    deps.options.topBar.itemOrder = moveTopBarItem(deps.options.topBar.itemOrder, itemId, 1, sameGroup);
     deps.saveOptionsNow();
     deps.rerenderPage();
     deps.refreshPanel();
@@ -87,9 +93,9 @@ function renderTopBarPanel(container: HTMLElement, deps: SettingsDeps): void {
   const list = document.createElement('div');
   list.className = 'options-topbar-order';
 
-  for (const itemId of enabledItems) {
-    appendTopBarOrderItem(list, itemId, deps, false);
-  }
+  enabledItems.forEach((itemId, index) => {
+    appendTopBarOrderItem(list, itemId, deps, false, index > 0, index < enabledItems.length - 1);
+  });
 
   if (disabledItems.length > 0) {
     const divider = document.createElement('div');
@@ -97,9 +103,9 @@ function renderTopBarPanel(container: HTMLElement, deps: SettingsDeps): void {
     divider.textContent = 'Disabled';
     list.appendChild(divider);
 
-    for (const itemId of disabledItems) {
-      appendTopBarOrderItem(list, itemId, deps, true);
-    }
+    disabledItems.forEach((itemId, index) => {
+      appendTopBarOrderItem(list, itemId, deps, true, index > 0, index < disabledItems.length - 1);
+    });
   }
 
   container.appendChild(list);

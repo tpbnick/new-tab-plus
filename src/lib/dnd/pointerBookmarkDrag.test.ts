@@ -99,7 +99,13 @@ describe('pointerBookmarkDrag integration', () => {
     const detach = attachPointerFolderDrag(grid, { onGridFolderDrop: vi.fn() });
 
     headerA.dispatchEvent(
-      new PointerEvent('pointerdown', { button: 0, clientX: 10, clientY: 10, bubbles: true })
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 1,
+        bubbles: true,
+      })
     );
     document.dispatchEvent(
       new PointerEvent('pointermove', {
@@ -118,11 +124,18 @@ describe('pointerBookmarkDrag integration', () => {
 
   it('suppresses the next header click after a completed drop', () => {
     const { grid, headerA, headerB } = makeDragGrid();
+    grid.getBoundingClientRect = () => rect(0, 700, 0, 400);
     const onGridFolderDrop = vi.fn();
     const detach = attachPointerFolderDrag(grid, { onGridFolderDrop });
 
     headerA.dispatchEvent(
-      new PointerEvent('pointerdown', { button: 0, clientX: 10, clientY: 10, bubbles: true })
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 1,
+        bubbles: true,
+      })
     );
     document.dispatchEvent(
       new PointerEvent('pointermove', {
@@ -132,15 +145,171 @@ describe('pointerBookmarkDrag integration', () => {
         bubbles: true,
       })
     );
-    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
 
-    if (onGridFolderDrop.mock.calls.length > 0) {
-      expect(consumeHeaderClickSuppression()).toBe(true);
-      expect(consumeHeaderClickSuppression()).toBe(false);
-    } else {
-      expect(headerB).toBeTruthy();
-    }
+    expect(headerB).toBeTruthy();
+    expect(onGridFolderDrop).toHaveBeenCalledTimes(1);
+    expect(consumeHeaderClickSuppression()).toBe(true);
+    expect(consumeHeaderClickSuppression()).toBe(false);
 
+    detach();
+  });
+
+  it('suppresses the next header click even when dropped outside a valid target', () => {
+    const { grid, headerA } = makeDragGrid();
+    grid.getBoundingClientRect = () => rect(0, 700, 0, 400);
+    const onGridFolderDrop = vi.fn();
+    const detach = attachPointerFolderDrag(grid, { onGridFolderDrop });
+
+    headerA.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 2,
+        bubbles: true,
+      })
+    );
+    document.dispatchEvent(
+      new PointerEvent('pointermove', {
+        clientX: 100,
+        clientY: 900,
+        pointerId: 2,
+        bubbles: true,
+      })
+    );
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2, bubbles: true }));
+
+    expect(onGridFolderDrop).not.toHaveBeenCalled();
+    expect(consumeHeaderClickSuppression()).toBe(true);
+    expect(consumeHeaderClickSuppression()).toBe(false);
+    detach();
+  });
+
+  it('cleans up on pointercancel without committing a drop or suppressing the next click', () => {
+    const { grid, headerA } = makeDragGrid();
+    grid.getBoundingClientRect = () => rect(0, 700, 0, 400);
+    const onGridFolderDrop = vi.fn();
+    const detach = attachPointerFolderDrag(grid, { onGridFolderDrop });
+
+    headerA.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 3,
+        bubbles: true,
+      })
+    );
+    document.dispatchEvent(
+      new PointerEvent('pointermove', {
+        clientX: 300,
+        clientY: 50,
+        pointerId: 3,
+        bubbles: true,
+      })
+    );
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(true);
+
+    document.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 3, bubbles: true }));
+
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(false);
+    expect(onGridFolderDrop).not.toHaveBeenCalled();
+    expect(consumeHeaderClickSuppression()).toBe(false);
+    detach();
+  });
+
+  it('ignores events from secondary pointers while a drag gesture is active', () => {
+    const { grid, headerA, headerB } = makeDragGrid();
+    grid.getBoundingClientRect = () => rect(0, 700, 0, 400);
+    const onGridFolderDrop = vi.fn();
+    const detach = attachPointerFolderDrag(grid, { onGridFolderDrop });
+
+    headerA.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 10,
+        bubbles: true,
+      })
+    );
+    // Secondary pointerdown is ignored
+    headerB.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 260,
+        clientY: 10,
+        pointerId: 11,
+        bubbles: true,
+      })
+    );
+    // Secondary pointermove is ignored
+    document.dispatchEvent(
+      new PointerEvent('pointermove', {
+        clientX: 300,
+        clientY: 50,
+        pointerId: 11,
+        bubbles: true,
+      })
+    );
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(false);
+
+    // Primary pointer activates drag
+    document.dispatchEvent(
+      new PointerEvent('pointermove', {
+        clientX: 300,
+        clientY: 50,
+        pointerId: 10,
+        bubbles: true,
+      })
+    );
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(true);
+
+    // Secondary pointerup / pointercancel does not terminate primary drag
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11, bubbles: true }));
+    document.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 11, bubbles: true }));
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(true);
+    expect(onGridFolderDrop).not.toHaveBeenCalled();
+
+    // Primary pointerup completes the drop for headerA ('a')
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 10, bubbles: true }));
+    expect(onGridFolderDrop).toHaveBeenCalledWith('a', 'grid:a', expect.anything());
+    consumeHeaderClickSuppression();
+    detach();
+  });
+
+  it('recovers cleanly when setPointerCapture throws on a detached header', () => {
+    const { grid, headerA } = makeDragGrid();
+    headerA.setPointerCapture = vi.fn(() => {
+      throw new DOMException('detached', 'InvalidStateError');
+    });
+    const detach = attachPointerFolderDrag(grid, { onGridFolderDrop: vi.fn() });
+
+    headerA.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 4,
+        bubbles: true,
+      })
+    );
+    expect(() =>
+      document.dispatchEvent(
+        new PointerEvent('pointermove', {
+          clientX: 10 + FOLDER_DRAG_THRESHOLD_PX + 4,
+          clientY: 10,
+          pointerId: 4,
+          bubbles: true,
+        })
+      )
+    ).not.toThrow();
+
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(true);
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 4, bubbles: true }));
+    expect(document.body.classList.contains('is-folder-dragging')).toBe(false);
+    consumeHeaderClickSuppression();
     detach();
   });
 });

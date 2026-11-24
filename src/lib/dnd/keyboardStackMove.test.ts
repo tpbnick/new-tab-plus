@@ -44,4 +44,26 @@ describe('resolveStackKeyboardMove', () => {
     expect(resolveStackKeyboardMove(columns, 'a', 'grid:a', 'left')).toEqual({ type: 'noop' });
     expect(resolveStackKeyboardMove(columns, 'b', 'grid:bc', 'up')).toEqual({ type: 'noop' });
   });
+
+  it('skips disabled grid columns when moving left or right', () => {
+    const withDisabled: BookmarkGridColumnMeta[] = [
+      grid('grid:a', 0, ['a']),
+      { id: 'grid:special:mostVisited', type: 'bookmarkGrid', order: 1, enabled: false, stack: ['special:mostVisited'] },
+      grid('grid:bc', 2, ['b', 'c']),
+    ];
+
+    expect(resolveStackKeyboardMove(withDisabled, 'b', 'grid:bc', 'left')).toEqual({
+      type: 'move-to-column',
+      folderId: 'b',
+      sourceGridColumnId: 'grid:bc',
+      targetGridColumnId: 'grid:a',
+    });
+
+    expect(resolveStackKeyboardMove(withDisabled, 'a', 'grid:a', 'right')).toEqual({
+      type: 'move-column',
+      folderId: 'a',
+      sourceGridColumnId: 'grid:a',
+      beforeColumnId: null,
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { hideUpdateBanner, showUpdateBanner } from './updateBanner';
 describe('update banner', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="app"></div>';
+    vi.restoreAllMocks();
   });
 
   it('shows a dismissible update banner', () => {
@@ -47,5 +48,18 @@ describe('update banner', () => {
     });
     hideUpdateBanner();
     expect(document.querySelector('.ntp-update-banner')).toBeNull();
+  });
+
+  it('does not open unsafe or non-https release URLs', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    for (const unsafeUrl of ['javascript:alert(1)', 'http://github.com/tpbnick/new-tab-plus', 'data:text/html,hi']) {
+      showUpdateBanner({
+        releaseUrl: unsafeUrl,
+        latestVersion: '1.0.3',
+        onDismiss: () => {},
+      });
+      document.querySelector<HTMLButtonElement>('.ntp-update-banner__message')?.click();
+    }
+    expect(openSpy).not.toHaveBeenCalled();
   });
 });

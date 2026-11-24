@@ -1,11 +1,11 @@
 import { FONT_FAMILY_OPTIONS } from './fontFamilies';
 
 const GOOGLE_FONT_LINK_ID = 'ntp-google-font';
-const FONT_WEIGHTS = '300;400;500;600;700;800';
+const DEFAULT_FONT_WEIGHTS = '300;400;500;600;700;800';
 
-function googleFontsCssUrl(family: string): string {
+function googleFontsCssUrl(family: string, weights: string = DEFAULT_FONT_WEIGHTS): string {
   const familyParam = family.trim().replace(/\s+/g, '+');
-  return `https://fonts.googleapis.com/css2?family=${familyParam}:wght@${FONT_WEIGHTS}&display=swap`;
+  return `https://fonts.googleapis.com/css2?family=${familyParam}:wght@${weights}&display=swap`;
 }
 
 /** Loads (or unloads) the Google Font stylesheet for the selected font-family value. */
@@ -19,7 +19,7 @@ export function loadFontForFamily(fontFamilyValue: string, doc: Document = docum
     return;
   }
 
-  const href = googleFontsCssUrl(googleFont);
+  const href = googleFontsCssUrl(googleFont, option.googleFontWeights);
   if (existing?.href === href) return;
 
   const link = existing ?? doc.createElement('link');

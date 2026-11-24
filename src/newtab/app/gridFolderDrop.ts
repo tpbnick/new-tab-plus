@@ -47,7 +47,7 @@ export async function handleStackKeyboardMove(
   if (appState.optionsState.general.lockColumns) return;
 
   const gridCols = appState.layoutState.columns.filter(
-    (c): c is BookmarkGridColumnMeta => c.type === 'bookmarkGrid'
+    (c): c is BookmarkGridColumnMeta => c.type === 'bookmarkGrid' && c.enabled
   );
   const action = resolveStackKeyboardMove(gridCols, folderId, sourceGridColumnId, direction);
 

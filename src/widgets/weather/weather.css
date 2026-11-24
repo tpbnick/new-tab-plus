@@ -33,7 +33,7 @@
   grid-column: 1 / -1;
   grid-row: 2;
   font-size: 0.78em;
-  opacity: 0.65;
+  color: var(--ntp-color-text-muted, color-mix(in srgb, var(--ntp-color-text, #e8e8f0) 82%, transparent));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

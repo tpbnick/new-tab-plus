@@ -3,7 +3,9 @@ import {
   getLayout,
   getOptionsLocal,
   getOptionsSynced,
+  isSelfStorageWrite,
   loadLayout,
+  migrateAndNormalizeLayout,
   moveAutomaticCloudCopyToLocal,
   optionsAffectLayout,
   optionsForCloud,
@@ -13,6 +15,7 @@ import {
   setLayout,
   setOptionsLocal,
   setOptionsSynced,
+  writeCloudSnapshot,
 } from './storage';
 import {
   createDefaultLayoutState,
@@ -141,7 +144,7 @@ describe('storage', () => {
   });
 
   it('fills missing nested theme defaults when loading partial options', async () => {
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       options: {
         schemaVersion: 2,
         theme: { fontSizePx: 18 },
@@ -151,6 +154,205 @@ describe('storage', () => {
     expect(options.theme.fontSizePx).toBe(18);
     expect(options.theme.regionGapPx).toBe(createDefaultOptionsState().theme.regionGapPx);
     expect(options.theme.colors.shadow).toBe(createDefaultOptionsState().theme.colors.shadow);
+  });
+
+  it('does not silently load cloud options or skip initial persist when save-to-cloud is off', async () => {
+    await chrome.storage.sync.set({
+      options: {
+        schemaVersion: SCHEMA_VERSION,
+        theme: { fontSizePx: 22 },
+      },
+    });
+    const options = await getOptionsSynced();
+    expect(options.theme.fontSizePx).toBe(createDefaultOptionsState().theme.fontSizePx);
+
+    await setOptionsSynced(options);
+    expect(mockStorageData('local').options).toBeDefined();
+  });
+
+  it('does not copy a portable path: cloud snapshot into local storage when save-to-cloud is off', async () => {
+    await chrome.storage.sync.set({
+      layout: {
+        schemaVersion: SCHEMA_VERSION,
+        columns: [
+          {
+            id: 'grid:path:1/Work',
+            type: 'bookmarkGrid',
+            order: 0,
+            enabled: true,
+            stack: ['path:1/Work'],
+          },
+        ],
+      },
+      folderState: { 'path:1/Work': { collapsed: true } },
+    });
+
+    const loaded = await loadLayout();
+    expect(loaded.source).toBe('default');
+    expect(loaded.hadStoredLayout).toBe(false);
+    expect(mockStorageData('local').layout).toBeUndefined();
+    expect(mockStorageData('local').folderState).toBeUndefined();
+  });
+
+  it('translates portable path: keys when moving automatic cloud copy to local', async () => {
+    await setOptionsLocal({ ...createDefaultOptionsLocalState(), syncToCloud: true });
+    vi.stubGlobal('chrome', {
+      ...chrome,
+      bookmarks: {
+        getTree: vi.fn(async () => [
+          {
+            id: '0',
+            title: 'root',
+            children: [
+              {
+                id: '1',
+                title: 'Bookmarks Bar',
+                children: [{ id: '80', title: 'Work', children: [] }],
+              },
+            ],
+          },
+        ]),
+      },
+    });
+
+    await chrome.storage.sync.set({
+      layout: {
+        schemaVersion: SCHEMA_VERSION,
+        columns: [
+          {
+            id: 'grid:path:1/Work',
+            type: 'bookmarkGrid',
+            order: 0,
+            enabled: true,
+            stack: ['path:1/Work'],
+          },
+        ],
+      },
+      folderState: { 'path:1/Work': { collapsed: true } },
+    });
+
+    await moveAutomaticCloudCopyToLocal();
+
+    const loaded = await loadLayout();
+    expect(loaded.source).toBe('local');
+    const gridCol = loaded.layout.columns.find((c) => c.type === 'bookmarkGrid');
+    expect(gridCol?.id).toBe('grid:80');
+    expect(gridCol?.type === 'bookmarkGrid' ? gridCol.stack : []).toEqual(['80']);
+    expect(loaded.layout.folderState).toEqual({ '80': { collapsed: true } });
+  });
+
+  it('persists duplicate built-in widget cleanup and upgrades schemaVersion < 1 without re-persisting', async () => {
+    const localArea = chrome.storage.local;
+    const setSpy = vi.spyOn(localArea, 'set');
+
+    await localArea.set({
+      layout: {
+        schemaVersion: 0,
+        columns: [
+          {
+            id: 'widget:weather-1',
+            type: 'widget',
+            order: 100,
+            enabled: false,
+            widgetId: 'weather',
+            instanceId: '1',
+            settings: { units: 'metric' },
+          },
+          {
+            id: 'widget:weather-2',
+            type: 'widget',
+            order: 101,
+            enabled: true,
+            widgetId: 'weather',
+            instanceId: '2',
+            settings: { city: 'Paris' },
+          },
+        ],
+      },
+      folderState: {},
+    });
+    setSpy.mockClear();
+
+    const first = await loadLayout();
+    expect(first.layout.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(first.layout.columns.filter((c) => c.type === 'widget')).toHaveLength(1);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+
+    setSpy.mockClear();
+    const second = await loadLayout();
+    expect(second.layout.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  it('validates all cloud snapshot items upfront and writes them atomically', async () => {
+    const syncSetSpy = vi.spyOn(chrome.storage.sync, 'set');
+    const layout = createDefaultLayoutState();
+    const oversizedOptions = createDefaultOptionsState();
+    oversizedOptions.background.imageUrl = `https://example.com/${'a'.repeat(9000)}`;
+
+    await expect(writeCloudSnapshot(layout, oversizedOptions)).rejects.toThrow(
+      /Chrome sync item "options"/
+    );
+    expect(syncSetSpy).not.toHaveBeenCalled();
+    expect(mockStorageData('sync').layout).toBeUndefined();
+
+    const validOptions = createDefaultOptionsState();
+    await writeCloudSnapshot(layout, validOptions);
+    expect(syncSetSpy).toHaveBeenCalledTimes(1);
+    expect(isSelfStorageWrite('sync', 'layout')).toBe(true);
+    expect(isSelfStorageWrite('sync', 'folderState')).toBe(true);
+    expect(isSelfStorageWrite('sync', 'options')).toBe(true);
+  });
+
+  it('handles malformed nested fields safely in mergeOptionsState', () => {
+    const merged = mergeOptionsState({
+      schemaVersion: 1,
+      general: { rememberOpenFolders: 'yes', folderCollapseAnimationMs: Number.NaN },
+      topBar: { itemOrder: 42, maxWidthPx: 999999, widgetScale: -5 },
+      theme: {
+        fontSizePx: null,
+        colors: { background: null, text: '' },
+        customSnapshot: 'invalid',
+      },
+      background: { imageUrl: null, imageOpacityPct: 'bad', size: 'stretch' },
+    } as unknown as Partial<OptionsState>);
+
+    const defaults = createDefaultOptionsState();
+    expect(merged.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(merged.general.rememberOpenFolders).toBe(defaults.general.rememberOpenFolders);
+    expect(merged.general.folderCollapseAnimationMs).toBe(defaults.general.folderCollapseAnimationMs);
+    expect(merged.topBar.itemOrder).toEqual(['search', 'clock', 'weather']);
+    expect(merged.topBar.maxWidthPx).toBe(3840);
+    expect(merged.topBar.widgetScale).toBe(0.5);
+    expect(merged.theme.fontSizePx).toBe(defaults.theme.fontSizePx);
+    expect(merged.theme.colors.background).toBe(defaults.theme.colors.background);
+    expect(merged.theme.colors.text).toBe(defaults.theme.colors.text);
+    expect(merged.background.imageUrl).toBe('');
+    expect(merged.background.size).toBe(defaults.background.size);
+  });
+
+  it('strips uppercase DATA: background URLs from cloud options', () => {
+    const options = createDefaultOptionsState();
+    options.background.imageUrl = 'DATA:IMAGE/PNG;base64,abc';
+    expect(optionsForCloud(options).background.imageUrl).toBe('');
+  });
+
+  it('reads optionsLocal in a single storage.local.get call', async () => {
+    await chrome.storage.local.set({
+      optionsLocal: { ...createDefaultOptionsLocalState(), syncToCloud: false },
+    });
+    const getSpy = vi.spyOn(chrome.storage.local, 'get');
+    await getOptionsLocal();
+    expect(getSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes schemaVersion in migrateAndNormalizeLayout even when raw schemaVersion < 1', () => {
+    const result = migrateAndNormalizeLayout({
+      schemaVersion: 0,
+      columns: [],
+      folderState: {},
+    });
+    expect(result.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it('mergeOptionsState deep-merges theme colors', () => {
@@ -246,7 +448,10 @@ describe('storage', () => {
 
   it('skips unchanged options writes after the last successful persist', async () => {
     const options = await getOptionsSynced();
+    await setOptionsSynced(options);
     const local = mockStorageData('local');
+    expect(local.options).toBeDefined();
+
     delete local.options;
     await setOptionsSynced(options);
     expect(local.options).toBeUndefined();

@@ -43,6 +43,18 @@ describe('reIdSourceColumnAfterNamesakeSplit', () => {
 
     expect(source.id).toBe('grid:stack:24');
   });
+
+  it('appends an incrementing numeric suffix when both natural and stack ids are taken', () => {
+    const source = col('grid:48', ['48', '24']);
+    const taken = new Set(['grid:48', 'grid:24', 'grid:stack:24', 'grid:stack:24:2']);
+
+    source.stack = ['24'];
+    reIdSourceColumnAfterNamesakeSplit(source, '48', taken);
+
+    expect(source.id).toBe('grid:stack:24:3');
+    expect(taken.has('grid:48')).toBe(false);
+    expect(taken.has('grid:stack:24:3')).toBe(true);
+  });
 });
 
 describe('insertBeforeIdAfterColumnSplit', () => {

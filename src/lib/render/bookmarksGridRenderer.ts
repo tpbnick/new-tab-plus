@@ -38,7 +38,9 @@ export interface RefreshBookmarksGridResult {
 function appendNodeSig(parts: string[], node: BookmarkNodeViewModel): void {
   parts.push(`n:${node.id}:${node.title}:${node.url ?? ''}:${node.collapsed ? 1 : 0}`);
   if (node.children) {
+    parts.push('[');
     for (const child of node.children) appendNodeSig(parts, child);
+    parts.push(']');
   }
 }
 
@@ -194,6 +196,7 @@ export function refreshBookmarksGrid(params: RefreshBookmarksGridParams): Refres
     nextElements.every((el, index) => bookmarksGrid.children[index] === el);
   if (!alreadyInPlace) {
     bookmarksGrid.replaceChildren(...nextElements);
+    gridDomChanged = true;
   }
 
   return { widgetSlots: nextWidgetSlots, gridDomChanged };

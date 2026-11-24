@@ -178,4 +178,69 @@ describe('resolveGridFolderDrop', () => {
       beforeColumnId: 'widget:clock',
     });
   });
+
+  it('resolves drop targets within the active visual row in a wrapped multi-row grid', () => {
+    const host = document.createElement('div');
+    stubRect(host, 0, 800, 0, 460);
+
+    const makeRowColumn = (id: string, left: number, top: number, folderId: string) => {
+      const column = document.createElement('div');
+      column.className = 'column column--bookmark-grid';
+      column.dataset.columnId = id;
+      column.dataset.gridColumnId = id;
+      stubRect(column, left, 200, top, 200);
+
+      const block = document.createElement('div');
+      block.className = 'folder-column-block';
+      block.dataset.folderId = folderId;
+      stubRect(block, left, 200, top + 16, 70);
+      column.appendChild(block);
+      return column;
+    };
+
+    // Row 0: grid:a (100..300, y 0..200), grid:b (330..530, y 0..200)
+    // Row 1: grid:c (100..300, y 220..420), grid:d (330..530, y 220..420)
+    host.append(
+      makeRowColumn('grid:a', 100, 0, 'a'),
+      makeRowColumn('grid:b', 330, 0, 'b'),
+      makeRowColumn('grid:c', 100, 220, 'c'),
+      makeRowColumn('grid:d', 330, 220, 'd')
+    );
+
+    // Over row 1 left column (same X as grid:a, but Y is in row 1)
+    expect(resolveGridFolderDrop(host, 'a', 150, 250)).toMatchObject({
+      mode: 'into',
+      gridColumnId: 'grid:c',
+      targetFolderId: 'c',
+      position: 'before',
+    });
+
+    // Gap between grid:c and grid:d on row 1
+    expect(resolveGridFolderDrop(host, 'a', 315, 250)).toMatchObject({
+      mode: 'newColumn',
+      beforeColumnId: 'grid:d',
+      lineX: 315,
+    });
+
+    // Gap between grid:a and grid:b on row 0
+    expect(resolveGridFolderDrop(host, 'c', 315, 50)).toMatchObject({
+      mode: 'newColumn',
+      beforeColumnId: 'grid:b',
+      lineX: 315,
+    });
+
+    // Trailing margin of row 0 inserts before first column of row 1
+    expect(resolveGridFolderDrop(host, 'a', 545, 50)).toMatchObject({
+      mode: 'newColumn',
+      beforeColumnId: 'grid:c',
+      lineX: 545,
+    });
+
+    // Trailing margin of last row appends at the end
+    expect(resolveGridFolderDrop(host, 'a', 545, 250)).toMatchObject({
+      mode: 'newColumn',
+      beforeColumnId: null,
+      lineX: 545,
+    });
+  });
 });

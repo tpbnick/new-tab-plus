@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isAllowedDataImageUrl,
   isAllowedNavigationUrl,
   isSafeBackgroundUrl,
   validateBackgroundImageUrl,
@@ -43,5 +44,15 @@ describe('urlSafety', () => {
       false
     );
     expect(isSafeBackgroundUrl('https://example.com/a.jpg\r\nfoo')).toBe(false);
+  });
+
+  it('validates data: image URLs by MIME header before the comma, not payload', () => {
+    expect(isAllowedDataImageUrl('data:image/png;base64,abcsvg123')).toBe(true);
+    expect(isAllowedDataImageUrl('data:image/png,payload-with-svg-substring')).toBe(true);
+    expect(isAllowedDataImageUrl('DATA:IMAGE/WEBP;base64,AAAA')).toBe(true);
+    expect(isAllowedDataImageUrl('data:image/png')).toBe(false);
+    expect(isAllowedDataImageUrl('data:image/svg+xml;base64,PHN2Zz4=')).toBe(false);
+    expect(isAllowedDataImageUrl('data:image/svg+xml,<svg></svg>')).toBe(false);
+    expect(isAllowedDataImageUrl('https://example.com/bg.png')).toBe(false);
   });
 });

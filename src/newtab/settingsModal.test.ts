@@ -90,4 +90,45 @@ describe('createSettingsModal integration', () => {
     await Promise.resolve();
     expect(modal.element.hidden).toBe(true);
   });
+
+  it('applies stored panel width on open and preserves it across window resize while closed', async () => {
+    const store = new Map<string, string>([['new-tab-plus:settings-panel-width', '820']]);
+    const originalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+      },
+    });
+    Object.defineProperty(window, 'innerWidth', { value: 1400, configurable: true });
+    try {
+      const deps = makeSettingsDeps();
+      const modal = createSettingsModal(deps);
+      document.body.appendChild(modal.element);
+
+      // Before open, hidden element must not get NaNpx width.
+      expect(modal.element.style.width).not.toContain('NaN');
+
+      modal.open();
+      expect(modal.element.style.width).toBe('820px');
+
+      await modal.close();
+      // Window resize while closed must not clamp the stored width down to 0/min.
+      window.dispatchEvent(new Event('resize'));
+      modal.open();
+      expect(modal.element.style.width).toBe('820px');
+    } finally {
+      if (originalStorage) {
+        Object.defineProperty(window, 'localStorage', originalStorage);
+      } else {
+        delete (window as unknown as Record<string, unknown>).localStorage;
+      }
+    }
+  });
 });

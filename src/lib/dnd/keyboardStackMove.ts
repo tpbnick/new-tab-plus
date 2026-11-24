@@ -25,7 +25,9 @@ export type StackKeyboardMoveAction =
     };
 
 function sortedGridColumns(columns: BookmarkGridColumnMeta[]): BookmarkGridColumnMeta[] {
-  return [...columns].sort((a, b) => a.order - b.order);
+  return columns
+    .filter((c) => c.enabled && getColumnStack(c).length > 0)
+    .sort((a, b) => a.order - b.order);
 }
 
 /** Resolves keyboard stack/column moves (Alt+Shift+arrow). */

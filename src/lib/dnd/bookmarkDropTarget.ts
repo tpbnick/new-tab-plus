@@ -11,9 +11,11 @@ export type GridFolderDropResult =
       mode: 'newColumn';
       beforeColumnId: string | null;
       lineX: number;
+      lineTop?: number;
+      lineHeight?: number;
     };
 
-export type LayoutColumnInsert = {
+type LayoutColumnInsert = {
   beforeColumnId: string | null;
   lineX: number;
 };
@@ -38,7 +40,8 @@ function measureColumnGapPx(columns: HTMLElement[]): number {
 type InsertZone = LayoutColumnInsert & { zoneLeft: number; zoneRight: number };
 
 function buildInsertZones(
-  columns: HTMLElement[]
+  columns: HTMLElement[],
+  afterLastBeforeColumnId: string | null = null
 ): InsertZone[] {
   if (columns.length === 0) return [];
 
@@ -71,7 +74,7 @@ function buildInsertZones(
     zoneLeft: lastRect.right,
     zoneRight: lastRect.right + gap,
     lineX: lastRect.right + gap / 2,
-    beforeColumnId: null,
+    beforeColumnId: afterLastBeforeColumnId,
   });
 
   return zones;
@@ -97,11 +100,64 @@ function resolveInsertFromZones(zones: InsertZone[], clientX: number): LayoutCol
   return best;
 }
 
-/** All layout columns in visual left-to-right order. */
-function sortedLayoutColumns(gridHost: HTMLElement): HTMLElement[] {
-  return [...gridHost.querySelectorAll<HTMLElement>('.column[data-column-id]')].sort(
-    (a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left
-  );
+interface VisualRow {
+  columns: HTMLElement[];
+  top: number;
+  bottom: number;
+}
+
+function verticallyOverlaps(topA: number, bottomA: number, topB: number, bottomB: number): boolean {
+  if (topA === bottomA || topB === bottomB) {
+    return topA <= bottomB && topB <= bottomA;
+  }
+  return topA < bottomB && topB < bottomA;
+}
+
+/** Group layout columns into visual flex-wrap rows sorted top-to-bottom, then left-to-right. */
+function visualColumnRows(gridHost: HTMLElement): VisualRow[] {
+  const entries = [...gridHost.querySelectorAll<HTMLElement>('.column[data-column-id]')]
+    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+    .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+
+  const rows: VisualRow[] = [];
+  for (const { el, rect } of entries) {
+    const match = rows.find((row) => verticallyOverlaps(rect.top, rect.bottom, row.top, row.bottom));
+    if (match) {
+      match.columns.push(el);
+      match.top = Math.min(match.top, rect.top);
+      match.bottom = Math.max(match.bottom, rect.bottom);
+    } else {
+      rows.push({ columns: [el], top: rect.top, bottom: rect.bottom });
+    }
+  }
+
+  for (const row of rows) {
+    row.columns.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+  }
+  return rows;
+}
+
+function activeVisualRowAtY(
+  rows: VisualRow[],
+  clientY: number
+): { row: VisualRow; nextRowFirstColumnId: string | null } | null {
+  if (rows.length === 0) return null;
+
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const dist =
+      clientY < row.top ? row.top - clientY : clientY > row.bottom ? clientY - row.bottom : 0;
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestIndex = i;
+      if (dist === 0) break;
+    }
+  }
+
+  const nextRowFirstColumnId = rows[bestIndex + 1]?.columns[0]?.dataset.columnId ?? null;
+  return { row: rows[bestIndex]!, nextRowFirstColumnId };
 }
 
 function resolveFolderInColumn(
@@ -139,24 +195,6 @@ function resolveFolderInColumn(
   };
 }
 
-/** Vertical insertion line between any layout columns (bookmark, special section, widget). */
-export function resolveLayoutColumnInsert(
-  gridHost: HTMLElement,
-  clientX: number,
-  clientY: number
-): LayoutColumnInsert | null {
-  const columns = sortedLayoutColumns(gridHost);
-  const gridRect = gridHost.getBoundingClientRect();
-
-  if (clientY < gridRect.top || clientY > gridRect.bottom) return null;
-
-  if (columns.length === 0) {
-    return { beforeColumnId: null, lineX: gridRect.left + gridRect.width / 2 };
-  }
-
-  return resolveInsertFromZones(buildInsertZones(columns), clientX);
-}
-
 function columnStripAtX(columns: HTMLElement[], clientX: number): HTMLElement | null {
   return (
     columns.find((col) => {
@@ -179,7 +217,18 @@ export function resolveGridFolderDrop(
   const gridRect = gridHost.getBoundingClientRect();
   if (clientY < gridRect.top || clientY > gridRect.bottom) return null;
 
-  const strip = columnStripAtX(sortedLayoutColumns(gridHost), clientX);
+  const active = activeVisualRowAtY(visualColumnRows(gridHost), clientY);
+  if (!active) {
+    return {
+      mode: 'newColumn',
+      beforeColumnId: null,
+      lineX: gridRect.left + gridRect.width / 2,
+      lineTop: gridRect.top,
+      lineHeight: gridRect.height,
+    };
+  }
+
+  const strip = columnStripAtX(active.row.columns, clientX);
   if (strip) {
     if (!strip.classList.contains('column--bookmark-grid')) return null;
     const folderTarget = resolveFolderInColumn(strip, draggedFolderId, clientY);
@@ -187,9 +236,18 @@ export function resolveGridFolderDrop(
     return null;
   }
 
-  const insert = resolveLayoutColumnInsert(gridHost, clientX, clientY);
+  const insert = resolveInsertFromZones(
+    buildInsertZones(active.row.columns, active.nextRowFirstColumnId),
+    clientX
+  );
   if (!insert) return null;
-  return { mode: 'newColumn', beforeColumnId: insert.beforeColumnId, lineX: insert.lineX };
+  return {
+    mode: 'newColumn',
+    beforeColumnId: insert.beforeColumnId,
+    lineX: insert.lineX,
+    lineTop: active.row.top,
+    lineHeight: Math.max(0, active.row.bottom - active.row.top),
+  };
 }
 
 /** Block element used to position the horizontal drop indicator. */

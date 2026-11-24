@@ -3,11 +3,15 @@ export interface WidgetSettingsField {
   label: string;
   type: 'text' | 'number' | 'select' | 'boolean' | 'color';
   options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
   default: unknown;
 }
 
 export interface WidgetContext {
   instanceId: string;
+  variant?: 'column' | 'inline';
   getSetting<T>(key: string): T;
   saveSettings(partial: Record<string, unknown>): Promise<void>;
 }

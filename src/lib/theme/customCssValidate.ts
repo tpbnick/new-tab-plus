@@ -4,6 +4,14 @@ export function stripCssComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
+function isEscaped(css: string, index: number): boolean {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && css[i] === '\\'; i--) {
+    backslashes++;
+  }
+  return backslashes % 2 === 1;
+}
+
 export function checkBalancedBraces(css: string): string | null {
   let depth = 0;
   let inString: '"' | "'" | null = null;
@@ -14,7 +22,10 @@ export function checkBalancedBraces(css: string): string | null {
     const next = css[i + 1];
 
     if (inComment) {
-      if (ch === '*' && next === '/') inComment = false;
+      if (ch === '*' && next === '/') {
+        inComment = false;
+        i++;
+      }
       continue;
     }
 
@@ -30,7 +41,7 @@ export function checkBalancedBraces(css: string): string | null {
     }
 
     if (inString) {
-      if (ch === inString && css[i - 1] !== '\\') inString = null;
+      if (ch === inString && !isEscaped(css, i)) inString = null;
       continue;
     }
 

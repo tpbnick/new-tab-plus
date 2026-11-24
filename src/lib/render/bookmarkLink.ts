@@ -1,5 +1,10 @@
 import { faviconUrl } from '../favicon';
-import { configureExternalLink, safeNavigationUrl } from './externalLink';
+import {
+  configureExternalLink,
+  isBrowserInternalUrl,
+  navigateExternalUrl,
+  safeNavigationUrl,
+} from './externalLink';
 
 export interface BookmarkLinkOptions {
   openLinksInSameTab: boolean;
@@ -53,10 +58,24 @@ export function renderBookmarkLinkItem(
       });
     });
   } else {
-    link.href = safeNavigationUrl(spec.url) ?? '#';
-    if (link.href !== '#') {
+    const safeUrl = safeNavigationUrl(spec.url);
+    if (safeUrl) {
+      link.href = safeUrl;
       configureExternalLink(link, options.openLinksInSameTab);
+      if (isBrowserInternalUrl(safeUrl)) {
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          const openInSameTab = options.openLinksInSameTab && !event.ctrlKey && !event.metaKey;
+          navigateExternalUrl(safeUrl, openInSameTab);
+        });
+        link.addEventListener('auxclick', (event) => {
+          if (event.button !== 1) return;
+          event.preventDefault();
+          navigateExternalUrl(safeUrl, false);
+        });
+      }
     } else {
+      link.href = '#';
       link.addEventListener('click', (event) => event.preventDefault());
     }
   }

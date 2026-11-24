@@ -23,14 +23,26 @@ function isCacheKey(key: string): boolean {
   return key.startsWith(CACHE_KEY_PREFIX);
 }
 
-export async function getCachedForecast(locationKey: string): Promise<ForecastResult | null> {
+export interface CachedForecastEntry {
+  data: ForecastResult;
+  remainingMs: number;
+}
+
+export async function getCachedForecastEntry(
+  locationKey: string,
+  maxTtlMs?: number
+): Promise<CachedForecastEntry | null> {
   const key = cacheKey(locationKey);
   const result = await chrome.storage.local.get(key);
   const entry = result[key] as WeatherCacheEntry | undefined;
   if (!entry) return null;
-  const ttlMs = normalizeTtlMs(entry.ttlMs);
-  if (Date.now() - entry.fetchedAt > ttlMs) return null;
-  return entry.data;
+  const storedTtlMs = normalizeTtlMs(entry.ttlMs);
+  const effectiveTtlMs =
+    maxTtlMs !== undefined ? Math.min(storedTtlMs, normalizeTtlMs(maxTtlMs)) : storedTtlMs;
+  const elapsed = Date.now() - entry.fetchedAt;
+  if (elapsed >= effectiveTtlMs) return null;
+  const remainingMs = Math.min(effectiveTtlMs, Math.max(1, effectiveTtlMs - elapsed));
+  return { data: entry.data, remainingMs };
 }
 
 async function readIndex(): Promise<string[] | null> {

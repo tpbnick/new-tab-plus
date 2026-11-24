@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { applyBackground, applyCustomCss, formatBackgroundImageLayers } from './themeEngine';
+import { describe, expect, it, vi } from 'vitest';
+import { createDefaultOptionsState } from '../storage/schema';
+import {
+  applyBackground,
+  applyCustomCss,
+  applyTheme,
+  formatBackgroundImageLayers,
+} from './themeEngine';
 
 describe('formatBackgroundImageLayers', () => {
   it('returns the image url alone at full opacity', () => {
@@ -69,5 +75,55 @@ describe('applyCustomCss', () => {
     expect(document.getElementById('user-custom-css')).not.toBeNull();
     applyCustomCss('');
     expect(document.getElementById('user-custom-css')).toBeNull();
+  });
+
+  it('forwards custom Document to validation and style injection', () => {
+    const customDoc = document.implementation.createHTMLDocument('custom-css');
+    const createElementSpy = vi.spyOn(customDoc, 'createElement');
+
+    const origSheet = globalThis.CSSStyleSheet;
+    vi.stubGlobal('CSSStyleSheet', undefined);
+    try {
+      applyCustomCss('.column { color: blue; }', customDoc);
+    } finally {
+      vi.stubGlobal('CSSStyleSheet', origSheet);
+    }
+
+    expect(createElementSpy).toHaveBeenCalledWith('style');
+    expect(customDoc.getElementById('user-custom-css')?.textContent).toBe('.column { color: blue; }');
+  });
+});
+
+describe('applyTheme', () => {
+  it('loads Google Fonts into root.ownerDocument', () => {
+    const happyDomSettings = (
+      window as unknown as {
+        happyDOM?: {
+          settings?: { disableCSSFileLoading?: boolean; handleDisabledFileLoadingAsSuccess?: boolean };
+        };
+      }
+    ).happyDOM?.settings;
+    const prevDisable = happyDomSettings?.disableCSSFileLoading;
+    const prevSuccess = happyDomSettings?.handleDisabledFileLoadingAsSuccess;
+    if (happyDomSettings) {
+      happyDomSettings.disableCSSFileLoading = true;
+      happyDomSettings.handleDisabledFileLoadingAsSuccess = true;
+    }
+    try {
+      const customDoc = document.implementation.createHTMLDocument('theme-doc');
+      const options = createDefaultOptionsState();
+      options.theme.fontFamily = '"JetBrains Mono", Consolas, monospace';
+
+      applyTheme(options.theme, options.background, customDoc.documentElement);
+
+      const link = customDoc.getElementById('ntp-google-font') as HTMLLinkElement | null;
+      expect(link).not.toBeNull();
+      expect(link!.href).toContain('JetBrains+Mono');
+    } finally {
+      if (happyDomSettings) {
+        happyDomSettings.disableCSSFileLoading = prevDisable;
+        happyDomSettings.handleDisabledFileLoadingAsSuccess = prevSuccess;
+      }
+    }
   });
 });

@@ -1,12 +1,15 @@
 import type { WidgetContext, WidgetDefinition, WidgetInstance, WidgetSettingsField } from '../contract';
 import { fetchForecast, formatGeocodeName, resolveLocationFromQuery, type ForecastResult } from './openMeteoClient';
-import { getCachedForecast, setCachedForecast } from './weatherCache';
+import { getCachedForecastEntry, setCachedForecast } from './weatherCache';
 import { getWmoInfo } from './wmoCodes';
 import type { WeatherIconName } from './weatherIcons';
 import { createWeatherIcon } from './weatherIcons';
 
 const PLACEHOLDER_TEMP = '88°';
 const PLACEHOLDER_RANGE = 'L:88° H:88°';
+const MIN_TTL_MINUTES = 5;
+const MAX_TTL_MINUTES = 1440;
+const RETRY_DELAY_MS = 5 * 60 * 1000;
 
 export interface WeatherSettings {
   [key: string]: unknown;
@@ -45,13 +48,22 @@ const settingsSchema: WidgetSettingsField[] = [
     ],
     default: 'fahrenheit',
   },
-  { key: 'ttlMinutes', label: 'Refresh interval (minutes)', type: 'number', default: 20 },
+  {
+    key: 'ttlMinutes',
+    label: 'Refresh interval (minutes)',
+    type: 'number',
+    min: MIN_TTL_MINUTES,
+    max: MAX_TTL_MINUTES,
+    default: 20,
+  },
 ];
 
 class WeatherWidgetInstance implements WidgetInstance {
   private destroyed = false;
   private refreshTimerId: number | undefined;
   private attemptedLocationClear = false;
+  private failedGeocodeQuery: string | null = null;
+  private abortController: AbortController | null = null;
   // Bumped on every render() call so a stale, still-in-flight call (e.g. one
   // racing against a newer render triggered by a settings change) can detect
   // it's no longer the latest and bail out without touching the DOM, making
@@ -69,14 +81,17 @@ class WeatherWidgetInstance implements WidgetInstance {
   }
 
   async render(): Promise<void> {
+    if (this.destroyed) return;
     const myGeneration = ++this.renderGeneration;
     window.clearTimeout(this.refreshTimerId);
     this.refreshTimerId = undefined;
+    this.abortController?.abort();
+    const controller = new AbortController();
+    this.abortController = controller;
     const isStale = () => this.destroyed || myGeneration !== this.renderGeneration;
 
-    if (isStale()) return;
-
     if (!this.settings.locationQuery.trim()) {
+      this.failedGeocodeQuery = null;
       const hasSavedPlace =
         this.settings.latitude != null ||
         this.settings.longitude != null ||
@@ -98,14 +113,22 @@ class WeatherWidgetInstance implements WidgetInstance {
     }
     this.attemptedLocationClear = false;
 
+    if (this.failedGeocodeQuery !== null && this.settings.locationQuery !== this.failedGeocodeQuery) {
+      this.failedGeocodeQuery = null;
+    }
+
     if (this.settings.locationQuery !== this.settings.resolvedQuery) {
+      if (this.settings.locationQuery === this.failedGeocodeQuery) {
+        this.container.innerHTML = '<p class="widget-error">Location lookup failed.</p>';
+        return;
+      }
       if (this.settings.latitude != null && this.settings.longitude != null) {
         this.renderLoadingShell();
       } else {
         this.container.innerHTML = '<p class="widget-loading">Finding location…</p>';
       }
       try {
-        const best = await resolveLocationFromQuery(this.settings.locationQuery);
+        const best = await resolveLocationFromQuery(this.settings.locationQuery, controller.signal);
         if (isStale()) return;
         if (!best) {
           this.container.replaceChildren();
@@ -116,6 +139,10 @@ class WeatherWidgetInstance implements WidgetInstance {
           return;
         }
         const resolvedName = formatGeocodeName(best);
+        const queryBeingSaved = this.settings.locationQuery;
+        // Mark before saveSettings so a rollback + recursive refresh() on save
+        // failure cannot re-enter geocoding in an infinite loop.
+        this.failedGeocodeQuery = queryBeingSaved;
         // saveSettings triggers its own refresh() -> render() with the resolved
         // coordinates, so this call must not also continue on to fetch weather
         // itself below - that would race the recursive render with this one.
@@ -123,12 +150,16 @@ class WeatherWidgetInstance implements WidgetInstance {
           latitude: best.latitude,
           longitude: best.longitude,
           locationName: resolvedName,
-          resolvedQuery: this.settings.locationQuery,
+          resolvedQuery: queryBeingSaved,
         });
+        if (!isStale() && this.settings.locationQuery !== this.settings.resolvedQuery) {
+          this.container.innerHTML = '<p class="widget-error">Location lookup failed.</p>';
+        }
         return;
       } catch {
         if (!isStale()) {
           this.container.innerHTML = '<p class="widget-error">Location lookup failed.</p>';
+          this.scheduleRefresh(RETRY_DELAY_MS);
         }
         return;
       }
@@ -141,46 +172,69 @@ class WeatherWidgetInstance implements WidgetInstance {
 
     this.renderLoadingShell();
 
+    const ttlMs = this.ttlMinutes() * 60 * 1000;
     const locationKey = `${this.settings.latitude},${this.settings.longitude},${this.settings.tempUnit}`;
-    let data = await getCachedForecast(locationKey);
+    let cached: Awaited<ReturnType<typeof getCachedForecastEntry>> = null;
+    try {
+      cached = await getCachedForecastEntry(locationKey, ttlMs);
+    } catch (err) {
+      console.warn('[new-tab-plus] failed to read weather cache', err);
+      cached = null;
+    }
     if (isStale()) return;
+
+    let data: ForecastResult | null = cached ? cached.data : null;
+    let nextRefreshMs = cached ? Math.min(cached.remainingMs, ttlMs) : ttlMs;
 
     if (!data) {
       try {
-        data = await fetchForecast(this.settings.latitude, this.settings.longitude, this.settings.tempUnit);
-        if (isStale()) return;
-        await setCachedForecast(
-          locationKey,
-          data,
-          this.ttlMinutes() * 60 * 1000
+        data = await fetchForecast(
+          this.settings.latitude,
+          this.settings.longitude,
+          this.settings.tempUnit,
+          controller.signal
         );
       } catch {
         if (!isStale()) {
           this.container.innerHTML = '<p class="widget-error">Weather unavailable.</p>';
+          this.scheduleRefresh(RETRY_DELAY_MS);
         }
         return;
       }
+      if (isStale()) return;
+
+      try {
+        await setCachedForecast(locationKey, data, ttlMs);
+      } catch (err) {
+        console.warn('[new-tab-plus] failed to write weather cache', err);
+      }
+      if (isStale()) return;
+      nextRefreshMs = ttlMs;
     }
 
     if (!isStale()) {
       this.renderData(data);
-      this.scheduleRefresh();
+      this.scheduleRefresh(nextRefreshMs);
     }
   }
 
   private ttlMinutes(): number {
     const minutes = Number(this.settings.ttlMinutes);
-    return Number.isFinite(minutes) && minutes > 0 ? minutes : 20;
+    if (!Number.isFinite(minutes) || minutes <= 0) return 20;
+    return Math.min(MAX_TTL_MINUTES, Math.max(MIN_TTL_MINUTES, minutes));
   }
 
-  private scheduleRefresh(): void {
+  private scheduleRefresh(delayMs: number = this.ttlMinutes() * 60 * 1000): void {
     window.clearTimeout(this.refreshTimerId);
-    const ttlMs = this.ttlMinutes() * 60 * 1000;
+    const maxDelayMs = MAX_TTL_MINUTES * 60 * 1000;
+    const clampedDelayMs = Number.isFinite(delayMs)
+      ? Math.min(maxDelayMs, Math.max(1000, delayMs))
+      : this.ttlMinutes() * 60 * 1000;
     this.refreshTimerId = window.setTimeout(() => {
       if (!this.destroyed) {
         void this.render();
       }
-    }, ttlMs);
+    }, clampedDelayMs);
   }
 
   private renderLoadingShell(): void {
@@ -193,7 +247,7 @@ class WeatherWidgetInstance implements WidgetInstance {
   }
 
   private isTopBarWidget(): boolean {
-    return Boolean(this.container.closest('.top-bar .widget-inline'));
+    return this.ctx.variant === 'inline' || Boolean(this.container.closest('.widget-inline'));
   }
 
   private renderUnconfigured(): void {
@@ -274,6 +328,8 @@ class WeatherWidgetInstance implements WidgetInstance {
 
   destroy(): void {
     this.destroyed = true;
+    this.abortController?.abort();
+    this.abortController = null;
     window.clearTimeout(this.refreshTimerId);
   }
 }

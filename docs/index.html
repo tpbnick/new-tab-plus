@@ -13,7 +13,12 @@
     <script>
       (function () {
         var key = 'ntp-docs-theme';
-        var theme = localStorage.getItem(key);
+        var theme = null;
+        try {
+          theme = localStorage.getItem(key);
+        } catch (e) {
+          theme = null;
+        }
         if (theme !== 'light' && theme !== 'dark') {
           theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         }
@@ -111,8 +116,8 @@
             src="images/new-tab-plus-1.png"
             alt="New Tab Plus new tab page with bookmark columns, search bar, clock, and weather widgets"
             loading="lazy"
-            width="1280"
-            height="720"
+            width="1750"
+            height="842"
           />
           <figcaption>
             Bookmark columns with the search bar, clock, and weather widgets in the top bar.
@@ -163,8 +168,8 @@
             src="images/new-tab-plus-settings.png"
             alt="Settings panel open on the Bookmarks tab with behavior and section options"
             loading="lazy"
-            width="1280"
-            height="720"
+            width="1750"
+            height="842"
           />
           <figcaption>The settings panel slides in from the right without leaving the new tab page.</figcaption>
         </figure>
@@ -181,8 +186,8 @@
               src="images/new-tab-plus-1.png"
               alt="New Tab Plus with the GitHub Dark theme"
               loading="lazy"
-              width="1280"
-              height="720"
+              width="1750"
+              height="842"
             />
             <figcaption>GitHub Dark</figcaption>
           </figure>
@@ -191,8 +196,8 @@
               src="images/new-tab-plus-2.png"
               alt="New Tab Plus with the Monokai Dark theme"
               loading="lazy"
-              width="1280"
-              height="720"
+              width="1750"
+              height="842"
             />
             <figcaption>Monokai Dark</figcaption>
           </figure>
@@ -201,8 +206,8 @@
               src="images/new-tab-plus-3.png"
               alt="New Tab Plus with the Hacker theme"
               loading="lazy"
-              width="1280"
-              height="720"
+              width="1750"
+              height="842"
             />
             <figcaption>Hacker</figcaption>
           </figure>
@@ -219,8 +224,8 @@
             src="images/new-tab-plus-command-palette.png"
             alt="Command palette open with bookmark search results for the query stream"
             loading="lazy"
-            width="1280"
-            height="720"
+            width="1750"
+            height="842"
           />
           <figcaption>
             Typing filters bookmarks instantly and offers a web search for the same query.

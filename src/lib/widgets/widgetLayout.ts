@@ -61,17 +61,37 @@ export function setBuiltinWidgetEnabled(
 
 /** Keep at most one column entry per built-in widget id. Later duplicates fill missing settings. */
 export function dedupeBuiltinWidgetColumns(columns: LayoutState['columns']): LayoutState['columns'] {
-  const kept = new Map<string, WidgetColumnMeta>();
-  return columns.filter((col) => {
-    if (col.type !== 'widget') return true;
-    if (!BUILTIN_TOP_BAR_WIDGETS.includes(col.widgetId as BuiltinTopBarWidgetId)) return true;
-    const existing = kept.get(col.widgetId);
-    if (!existing) {
-      kept.set(col.widgetId, col);
-      return true;
+  const keptIndex = new Map<string, number>();
+  const result: LayoutState['columns'] = [];
+  let changed = false;
+
+  for (const col of columns) {
+    if (col.type !== 'widget' || !BUILTIN_TOP_BAR_WIDGETS.includes(col.widgetId as BuiltinTopBarWidgetId)) {
+      result.push(col);
+      continue;
     }
-    existing.settings = { ...col.settings, ...existing.settings };
-    existing.enabled = existing.enabled || col.enabled;
-    return false;
-  });
+    const existingIdx = keptIndex.get(col.widgetId);
+    if (existingIdx === undefined) {
+      keptIndex.set(col.widgetId, result.length);
+      result.push(col);
+      continue;
+    }
+    changed = true;
+    const existing = result[existingIdx] as WidgetColumnMeta;
+    const existingSettings =
+      existing.settings && typeof existing.settings === 'object' && !Array.isArray(existing.settings)
+        ? existing.settings
+        : {};
+    const dupSettings =
+      col.settings && typeof col.settings === 'object' && !Array.isArray(col.settings)
+        ? col.settings
+        : {};
+    result[existingIdx] = {
+      ...existing,
+      settings: { ...dupSettings, ...existingSettings },
+      enabled: existing.enabled || col.enabled,
+    };
+  }
+
+  return changed ? result : columns;
 }

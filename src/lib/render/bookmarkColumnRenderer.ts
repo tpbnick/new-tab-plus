@@ -112,6 +112,9 @@ function renderNode(
 
       const body = document.createElement('div');
       body.className = 'folder-item-body';
+      if (node.collapsed) {
+        body.setAttribute('inert', '');
+      }
       body.appendChild(renderNodeList(node.children, options));
       item.appendChild(body);
     }

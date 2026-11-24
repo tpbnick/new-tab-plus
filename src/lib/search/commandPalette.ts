@@ -21,8 +21,8 @@ type ResultItem =
 
 function isPrintableKey(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
-  // "?" is the settings shortcut — leave it for globalShortcuts.
-  if (event.key === '?') return false;
+  // "?" is the settings shortcut; Space activates buttons and scrolls the page.
+  if (event.key === '?' || event.key === ' ') return false;
   return event.key.length === 1;
 }
 
@@ -180,6 +180,7 @@ export function attachCommandPalette(callbacks: CommandPaletteCallbacks): Comman
 
   function close(): void {
     window.clearTimeout(inputDebounceTimer);
+    inputDebounceTimer = undefined;
     open = false;
     overlay.hidden = true;
     document.body.classList.remove('is-command-palette-open');
@@ -208,12 +209,32 @@ export function attachCommandPalette(callbacks: CommandPaletteCallbacks): Comman
 
   function moveSelection(delta: number): void {
     if (results.length === 0) return;
+    const prevIndex = selectedIndex;
     selectedIndex = (selectedIndex + delta + results.length) % results.length;
-    renderResults();
-    list.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`)?.scrollIntoView({ block: 'nearest' });
+
+    const prevEl = list.children[prevIndex] as HTMLElement | undefined;
+    if (prevEl && prevIndex !== selectedIndex) {
+      prevEl.classList.remove('command-palette__item--active');
+      prevEl.setAttribute('aria-selected', 'false');
+    }
+    const nextEl = list.children[selectedIndex] as HTMLElement | undefined;
+    if (nextEl) {
+      nextEl.classList.add('command-palette__item--active');
+      nextEl.setAttribute('aria-selected', 'true');
+      nextEl.scrollIntoView({ block: 'nearest' });
+    }
+    updateActiveDescendant();
+  }
+
+  function flushPendingInput(): void {
+    if (inputDebounceTimer === undefined) return;
+    window.clearTimeout(inputDebounceTimer);
+    inputDebounceTimer = undefined;
+    syncResults(true);
   }
 
   function onDocumentKeyDown(event: KeyboardEvent): void {
+    if (event.isComposing) return;
     if (callbacks.isBlocked?.()) return;
 
     if (open) {
@@ -234,18 +255,22 @@ export function attachCommandPalette(callbacks: CommandPaletteCallbacks): Comman
   }
 
   function onInputKeyDown(event: KeyboardEvent): void {
+    if (event.isComposing) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
+      flushPendingInput();
       moveSelection(1);
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
+      flushPendingInput();
       moveSelection(-1);
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
+      flushPendingInput();
       activateSelected();
       return;
     }
@@ -259,7 +284,10 @@ export function attachCommandPalette(callbacks: CommandPaletteCallbacks): Comman
 
   function onInput(): void {
     window.clearTimeout(inputDebounceTimer);
-    inputDebounceTimer = window.setTimeout(() => syncResults(true), 75);
+    inputDebounceTimer = window.setTimeout(() => {
+      inputDebounceTimer = undefined;
+      syncResults(true);
+    }, 75);
   }
 
   function onOverlayMouseDown(event: MouseEvent): void {
@@ -274,7 +302,6 @@ export function attachCommandPalette(callbacks: CommandPaletteCallbacks): Comman
   return {
     isOpen: () => open,
     detach: () => {
-      window.clearTimeout(inputDebounceTimer);
       document.removeEventListener('keydown', onDocumentKeyDown);
       input.removeEventListener('keydown', onInputKeyDown);
       input.removeEventListener('input', onInput);

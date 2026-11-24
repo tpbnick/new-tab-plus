@@ -14,12 +14,13 @@ export interface SettingsModal {
 
 function panelWidthEmToPx(modal: HTMLElement, em: number): number {
   const fontSize = parseFloat(getComputedStyle(modal).fontSize);
-  return em * fontSize;
+  const resolvedFontSize = Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 16;
+  return em * resolvedFontSize;
 }
 
 function getPanelWidthBounds(modal: HTMLElement): { min: number; max: number } {
   const insetInline = parseFloat(getComputedStyle(modal).getPropertyValue('--settings-inset-inline')) || 16;
-  const viewportMax = window.innerWidth - insetInline * 2;
+  const viewportMax = Math.max(0, window.innerWidth - insetInline * 2);
   const min = Math.min(panelWidthEmToPx(modal, PANEL_DEFAULT_WIDTH_EM), viewportMax);
   const max = Math.min(panelWidthEmToPx(modal, PANEL_MAX_WIDTH_EM), viewportMax);
   return { min, max: Math.max(min, max) };
@@ -32,7 +33,7 @@ function clampPanelWidth(modal: HTMLElement, widthPx: number): number {
 
 function persistPanelWidth(widthPx: number): void {
   try {
-    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(Math.round(widthPx)));
+    window.localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(Math.round(widthPx)));
   } catch {
     /* ignore */
   }
@@ -40,22 +41,23 @@ function persistPanelWidth(widthPx: number): void {
 
 function loadStoredPanelWidth(): number | null {
   try {
-    const saved = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
+    const saved = window.localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
     if (!saved) return null;
     const width = parseFloat(saved);
-    return Number.isFinite(width) ? width : null;
+    return Number.isFinite(width) && width > 0 ? width : null;
   } catch {
     return null;
   }
 }
 
-function applyPanelWidth(modal: HTMLElement, widthPx: number, persist = true): void {
+function applyPanelWidth(modal: HTMLElement, widthPx: number, persist = true): number {
   const clamped = clampPanelWidth(modal, widthPx);
   modal.style.width = `${clamped}px`;
   if (persist) persistPanelWidth(clamped);
+  return clamped;
 }
 
-function attachPanelResize(host: HTMLElement): void {
+function attachPanelResize(host: HTMLElement): { syncWidth: () => void } {
   const handle = document.createElement('div');
   handle.className = 'settings-modal__resize';
   handle.setAttribute('aria-hidden', 'true');
@@ -67,12 +69,13 @@ function attachPanelResize(host: HTMLElement): void {
     '</svg></span>';
   host.prepend(handle);
 
-  const stored = loadStoredPanelWidth();
-  if (stored != null) {
-    applyPanelWidth(host, stored, false);
-  }
-
+  let preferredWidthPx: number | null = loadStoredPanelWidth();
   let dragging = false;
+
+  const syncWidth = (): void => {
+    if (host.hidden || preferredWidthPx == null) return;
+    applyPanelWidth(host, preferredWidthPx, false);
+  };
 
   const stopDrag = (): void => {
     if (!dragging) return;
@@ -91,15 +94,21 @@ function attachPanelResize(host: HTMLElement): void {
   document.addEventListener('mousemove', (event) => {
     if (!dragging) return;
     const right = host.getBoundingClientRect().right;
-    applyPanelWidth(host, right - event.clientX);
+    preferredWidthPx = applyPanelWidth(host, right - event.clientX);
   });
 
   document.addEventListener('mouseup', stopDrag);
   window.addEventListener('blur', stopDrag);
 
   window.addEventListener('resize', () => {
-    applyPanelWidth(host, host.getBoundingClientRect().width, false);
+    if (host.hidden) return;
+    const targetWidth = preferredWidthPx ?? host.getBoundingClientRect().width;
+    if (targetWidth > 0) {
+      applyPanelWidth(host, targetWidth, false);
+    }
   });
+
+  return { syncWidth };
 }
 
 export function createSettingsModal(deps: SettingsDeps): SettingsModal {
@@ -148,7 +157,7 @@ export function createSettingsModal(deps: SettingsDeps): SettingsModal {
 
   modal.append(header, nav, content);
   host.appendChild(modal);
-  attachPanelResize(host);
+  const { syncWidth } = attachPanelResize(host);
 
   deps.refreshPanel = () => showSection(currentSection);
 
@@ -162,6 +171,7 @@ export function createSettingsModal(deps: SettingsDeps): SettingsModal {
   function open(): void {
     focusBeforeOpen = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     host.hidden = false;
+    syncWidth();
     showSection(currentSection);
     closeBtn.focus();
   }

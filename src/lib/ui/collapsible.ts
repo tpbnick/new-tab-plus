@@ -18,15 +18,21 @@ const CLASS_HOVER_EXPANDED = 'is-hover-expanded';
 const NON_SELECTABLE_SELECTOR =
   '.folder-column-header, .folder-toggle, .folder-toggle--static, .column__title, .widget-inline, .widget-body';
 
+function resolveTargetElement(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
+
 function preventLabelTextSelection(root: HTMLElement): () => void {
   const onMouseDown = (e: MouseEvent) => {
-    const control = (e.target as HTMLElement).closest<HTMLElement>(NON_SELECTABLE_SELECTOR);
+    const control = resolveTargetElement(e.target)?.closest<HTMLElement>(NON_SELECTABLE_SELECTOR);
     if (!control || !root.contains(control)) return;
     if (e.detail > 1) e.preventDefault();
   };
 
   const onSelectStart = (e: Event) => {
-    const control = (e.target as HTMLElement).closest<HTMLElement>(NON_SELECTABLE_SELECTOR);
+    const control = resolveTargetElement(e.target)?.closest<HTMLElement>(NON_SELECTABLE_SELECTOR);
     if (!control || !root.contains(control)) return;
     e.preventDefault();
   };
@@ -48,6 +54,32 @@ function updateChevron(control: HTMLElement, collapsed: boolean): void {
   if (chev) chev.textContent = chevron(collapsed);
 }
 
+function directCollapsibleBody(container: HTMLElement): HTMLElement | null {
+  for (const child of Array.from(container.children)) {
+    if (
+      child instanceof HTMLElement &&
+      (child.classList.contains('folder-column-body') ||
+        child.classList.contains('folder-item-body'))
+    ) {
+      return child;
+    }
+  }
+  return null;
+}
+
+function syncBodyInert(container: HTMLElement): void {
+  const body = directCollapsibleBody(container);
+  if (!body) return;
+  const shouldBeInert =
+    container.classList.contains(CLASS_COLLAPSED) &&
+    !container.classList.contains(CLASS_HOVER_EXPANDED);
+  if (shouldBeInert) {
+    body.setAttribute('inert', '');
+  } else {
+    body.removeAttribute('inert');
+  }
+}
+
 export function applyCollapsedState(container: HTMLElement, collapsed: boolean): void {
   container.classList.toggle(CLASS_COLLAPSED, collapsed);
   container.dataset.collapsed = collapsed ? 'true' : 'false';
@@ -56,6 +88,7 @@ export function applyCollapsedState(container: HTMLElement, collapsed: boolean):
     control.setAttribute('aria-expanded', String(!collapsed));
     updateChevron(control, collapsed);
   }
+  syncBodyInert(container);
 }
 
 function attachHoverPeek(container: HTMLElement, options: CollapsibleAttachOptions): () => void {
@@ -64,10 +97,12 @@ function attachHoverPeek(container: HTMLElement, options: CollapsibleAttachOptio
   const onEnter = () => {
     if (container.classList.contains(CLASS_COLLAPSED)) {
       container.classList.add(CLASS_HOVER_EXPANDED);
+      syncBodyInert(container);
     }
   };
   const onLeave = () => {
     container.classList.remove(CLASS_HOVER_EXPANDED);
+    syncBodyInert(container);
   };
 
   container.addEventListener('mouseenter', onEnter);

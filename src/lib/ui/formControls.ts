@@ -7,20 +7,53 @@ export interface OptionsRowOptions {
 }
 
 let activeHelpTooltip: HTMLElement | null = null;
+let activeHelpTrigger: HTMLElement | null = null;
+let dismissHelpCleanup: (() => void) | null = null;
 
 function hideHelpTooltip(): void {
   activeHelpTooltip?.remove();
   activeHelpTooltip = null;
+  activeHelpTrigger = null;
+  dismissHelpCleanup?.();
+  dismissHelpCleanup = null;
 }
 
 function showHelpTooltip(trigger: HTMLElement, text: string): void {
   hideHelpTooltip();
+  if (!trigger.isConnected) return;
   const tip = document.createElement('div');
   tip.className = 'options-help-tooltip';
   tip.textContent = text;
   tip.setAttribute('role', 'tooltip');
   document.body.appendChild(tip);
   activeHelpTooltip = tip;
+  activeHelpTrigger = trigger;
+
+  const onPointerDown = (event: Event): void => {
+    const target = event.target as Node | null;
+    if (!activeHelpTrigger?.isConnected || !activeHelpTrigger.contains(target)) {
+      hideHelpTooltip();
+    }
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' || !activeHelpTrigger?.isConnected) {
+      hideHelpTooltip();
+    }
+  };
+  const onPointerMove = (): void => {
+    if (activeHelpTrigger && !activeHelpTrigger.isConnected) {
+      hideHelpTooltip();
+    }
+  };
+
+  document.addEventListener('pointerdown', onPointerDown, true);
+  document.addEventListener('keydown', onKeyDown, true);
+  document.addEventListener('pointermove', onPointerMove, true);
+  dismissHelpCleanup = () => {
+    document.removeEventListener('pointerdown', onPointerDown, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.removeEventListener('pointermove', onPointerMove, true);
+  };
 
   const triggerRect = trigger.getBoundingClientRect();
   const tipRect = tip.getBoundingClientRect();
@@ -117,6 +150,7 @@ export function createNumberInput(
   if (opts.step !== undefined) el.step = String(opts.step);
   const eventName = opts.event ?? 'input';
   el.addEventListener(eventName, () => {
+    if (el.value.trim() === '') return;
     const next = Number(el.value);
     if (!Number.isFinite(next)) return;
     onChange(next);
@@ -139,6 +173,7 @@ export function createSelectInput(
     optionEl.selected = choice.value === value;
     el.appendChild(optionEl);
   }
+  el.value = value;
   el.addEventListener('change', () => onChange(el.value));
   return el;
 }
@@ -227,7 +262,9 @@ export function createRangeRow(
     slider.style.setProperty('--range-fill', `${pct}%`);
   }
 
-  function applyValue(raw: number): void {
+  let currentCommitted = value;
+
+  function applyValue(raw: number, forceNotify = true): void {
     if (!Number.isFinite(raw)) return;
     let next = Math.min(max, Math.max(min, raw));
     if (unit === '%') {
@@ -235,15 +272,46 @@ export function createRangeRow(
     }
     slider.value = String(next);
     numberBox.value = formatValue(next);
-    onChange(next);
     updateRangeFill();
+    if (forceNotify || next !== currentCommitted) {
+      currentCommitted = next;
+      onChange(next);
+    }
+  }
+
+  function commitNumberBox(): void {
+    const text = numberBox.value.trim();
+    if (text === '') {
+      numberBox.value = formatValue(currentCommitted);
+      return;
+    }
+    const raw = Number(text);
+    if (!Number.isFinite(raw)) {
+      numberBox.value = formatValue(currentCommitted);
+      return;
+    }
+    applyValue(raw, false);
   }
 
   updateRangeFill();
 
-  slider.addEventListener('input', () => applyValue(Number(slider.value)));
-  numberBox.addEventListener('input', () => applyValue(Number(numberBox.value)));
-  numberBox.addEventListener('change', () => applyValue(Number(numberBox.value)));
+  slider.addEventListener('input', () => applyValue(Number(slider.value), true));
+  numberBox.addEventListener('input', () => {
+    const text = numberBox.value.trim();
+    if (text === '' || text.endsWith('.') || text === '-') return;
+    const raw = Number(text);
+    if (!Number.isFinite(raw) || raw < min || raw > max) return;
+    let next = raw;
+    if (unit === '%') {
+      next = snapPercent(next, min, max, step);
+    }
+    slider.value = String(next);
+    updateRangeFill();
+    currentCommitted = next;
+    onChange(next);
+  });
+  numberBox.addEventListener('change', commitNumberBox);
+  numberBox.addEventListener('blur', commitNumberBox);
 
   controls.append(slider);
   if (unit) {

@@ -348,4 +348,36 @@ describe('reconcileBookmarkColumns', () => {
     expect(columns.find((c) => c.id === 'grid:combined')?.stack.some((e) => e.kind === 'folder')).toBe(true);
     expect(columns.find((c) => c.id === 'grid:combined')?.stack.some((e) => e.kind === 'section')).toBe(false);
   });
+
+  it('never creates duplicate bookmarkGrid column IDs during reconciliation', () => {
+    const tree = buildTree([folder('10', 'Work', []), folder('20', 'Personal', [])]);
+    const layout: LayoutState = {
+      ...createDefaultLayoutState(),
+      columns: [
+        { id: 'grid:20', type: 'bookmarkGrid', order: 0, enabled: true, stack: ['10'] },
+      ],
+    };
+
+    const { layout: reconciled } = reconcileBookmarkColumns(tree, layout);
+    const gridIds = reconciled.columns.filter((c) => c.type === 'bookmarkGrid').map((c) => c.id);
+    expect(gridIds).toHaveLength(2);
+    expect(new Set(gridIds).size).toBe(2);
+  });
+
+  it('drops empty bookmarkGrid columns in resetBookmarkGridLayout and keeps unique IDs', () => {
+    const tree = buildTree([folder('10', 'Work', [])]);
+    const layout: LayoutState = {
+      ...createDefaultLayoutState(),
+      columns: [
+        ...createDefaultLayoutState().columns,
+        { id: 'grid:empty', type: 'bookmarkGrid', order: 50, enabled: true, stack: [] },
+        { id: 'grid:10', type: 'bookmarkGrid', order: 51, enabled: true, stack: ['special:apps'] },
+      ],
+    };
+
+    const reset = resetBookmarkGridLayout(layout, tree);
+    expect(reset.columns.find((c) => c.id === 'grid:empty')).toBeUndefined();
+    const ids = reset.columns.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ForecastResult } from './openMeteoClient';
-import { getCachedForecast, setCachedForecast } from './weatherCache';
+import { getCachedForecastEntry, setCachedForecast } from './weatherCache';
 
 function makeLocalStorage() {
   const data: Record<string, unknown> = {};
@@ -44,7 +44,7 @@ describe('weatherCache', () => {
 
   it('round-trips a forecast and keeps an index instead of scanning all keys', async () => {
     await setCachedForecast('seattle', forecast, 60_000);
-    expect(await getCachedForecast('seattle')).toEqual(forecast);
+    expect((await getCachedForecastEntry('seattle'))?.data).toEqual(forecast);
     expect(local._data.weatherCacheKeys).toEqual(['weatherCache:seattle']);
   });
 
@@ -58,6 +58,10 @@ describe('weatherCache', () => {
     expect(local._data.weatherCacheKeys).toEqual(['weatherCache:new', 'weatherCache:old']);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('prunes oldest index entries after the cap', async () => {
     for (let i = 0; i < 13; i++) {
       await setCachedForecast(`loc-${i}`, forecast, 60_000);
@@ -66,5 +70,31 @@ describe('weatherCache', () => {
     expect(keys).toHaveLength(12);
     expect(keys[0]).toBe('weatherCache:loc-12');
     expect(local._data['weatherCache:loc-0']).toBeUndefined();
+  });
+
+  it('returns remainingMs from getCachedForecastEntry and expires cleanly', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    await setCachedForecast('seattle', forecast, 60_000);
+
+    vi.advanceTimersByTime(15_000);
+    const entry = await getCachedForecastEntry('seattle');
+    expect(entry).toEqual({ data: forecast, remainingMs: 45_000 });
+
+    vi.advanceTimersByTime(45_000);
+    expect(await getCachedForecastEntry('seattle')).toBeNull();
+  });
+
+  it('respects a shorter maxTtlMs when the user lowers ttlMinutes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    await setCachedForecast('seattle', forecast, 60 * 60_000);
+
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(await getCachedForecastEntry('seattle', 5 * 60_000)).toBeNull();
+    expect(await getCachedForecastEntry('seattle', 15 * 60_000)).toEqual({
+      data: forecast,
+      remainingMs: 5 * 60_000,
+    });
   });
 });

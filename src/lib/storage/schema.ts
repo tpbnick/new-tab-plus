@@ -5,6 +5,7 @@ import {
   normalizeLinkHoverEffect,
   type LinkHoverEffect,
 } from '../theme/linkHover';
+import { clampTopBarOptions, normalizeTopBarItemOrder } from '../topBar/topBarLayout';
 import { snapPercent } from '../ui/percentSnap';
 import { normalizeSearchEngine, type SearchEngineId } from '../search/searchEngine';
 
@@ -82,8 +83,6 @@ export interface OptionsState {
     lockColumns: boolean;
     /** When true, check GitHub releases for extension updates. */
     checkForUpdates: boolean;
-    /** When true, bookmark column layout is stored in Chrome Sync; when false, this device only. */
-    syncBookmarkLayout: boolean;
   };
   topBar: {
     /** Left-to-right order of search and built-in widgets. Disabled widgets are skipped at render. */
@@ -212,7 +211,6 @@ export function createDefaultOptionsState(): OptionsState {
       folderCollapseAnimationMs: 250,
       lockColumns: false,
       checkForUpdates: true,
-      syncBookmarkLayout: true,
     },
     topBar: {
       itemOrder: ['search', 'clock', 'weather'],
@@ -271,56 +269,157 @@ export function createDefaultOptionsState(): OptionsState {
   };
 }
 
+const VALID_BACKGROUND_SIZES = new Set<OptionsState['background']['size']>([
+  'cover',
+  'contain',
+  'repeat',
+  'auto',
+]);
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function asFiniteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function asNonEmptyString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return isPlainRecord(value) ? value : {};
+}
+
+function mergeThemeColors(
+  raw: unknown,
+  defaults: OptionsState['theme']['colors']
+): OptionsState['theme']['colors'] {
+  const src = asRecord(raw);
+  return {
+    text: asNonEmptyString(src.text, defaults.text),
+    background: asNonEmptyString(src.background, defaults.background),
+    highlight: asNonEmptyString(src.highlight, defaults.highlight),
+    highlightText: asNonEmptyString(src.highlightText, defaults.highlightText),
+    shadow: asNonEmptyString(src.shadow, defaults.shadow),
+  };
+}
+
 /** Merge stored options with defaults, including nested theme/background fields. */
 export function mergeOptionsState(raw: Partial<OptionsState>): OptionsState {
   const defaults = createDefaultOptionsState();
+  const root = asRecord(raw);
+  const rawGeneral = asRecord(root.general);
+  const rawTopBar = asRecord(root.topBar);
+  const rawTheme = asRecord(root.theme);
+  const rawCustomSnapshot = asRecord(rawTheme.customSnapshot);
+  const rawBackground = asRecord(root.background);
+
+  const rawItemOrder = Array.isArray(rawTopBar.itemOrder)
+    ? rawTopBar.itemOrder.filter((id): id is TopBarItemId => typeof id === 'string')
+    : undefined;
+
+  const rawBgSize = rawBackground.size;
+  const backgroundSize: OptionsState['background']['size'] =
+    typeof rawBgSize === 'string' &&
+    VALID_BACKGROUND_SIZES.has(rawBgSize as OptionsState['background']['size'])
+      ? (rawBgSize as OptionsState['background']['size'])
+      : defaults.background.size;
+
   return {
-    ...defaults,
-    ...raw,
-    general: { ...defaults.general, ...raw.general },
-    topBar: {
-      ...defaults.topBar,
-      ...raw.topBar,
-      searchEnabled: raw.topBar?.searchEnabled ?? defaults.topBar.searchEnabled,
-      searchEngine: normalizeSearchEngine(raw.topBar?.searchEngine),
+    schemaVersion: SCHEMA_VERSION,
+    general: {
+      rememberOpenFolders: asBoolean(rawGeneral.rememberOpenFolders, defaults.general.rememberOpenFolders),
+      openLinksInSameTab: asBoolean(rawGeneral.openLinksInSameTab, defaults.general.openLinksInSameTab),
+      expandCollapsedOnHover: asBoolean(
+        rawGeneral.expandCollapsedOnHover,
+        defaults.general.expandCollapsedOnHover
+      ),
+      folderCollapseAnimationMs: asFiniteNumber(
+        rawGeneral.folderCollapseAnimationMs,
+        defaults.general.folderCollapseAnimationMs
+      ),
+      lockColumns: asBoolean(rawGeneral.lockColumns, defaults.general.lockColumns),
+      checkForUpdates: asBoolean(rawGeneral.checkForUpdates, defaults.general.checkForUpdates),
     },
+    topBar: clampTopBarOptions({
+      itemOrder: normalizeTopBarItemOrder(rawItemOrder),
+      fullWidth: asBoolean(rawTopBar.fullWidth, defaults.topBar.fullWidth),
+      searchEnabled: asBoolean(rawTopBar.searchEnabled, defaults.topBar.searchEnabled),
+      searchEngine: normalizeSearchEngine(rawTopBar.searchEngine),
+      searchMaxWidthPx: asFiniteNumber(rawTopBar.searchMaxWidthPx, defaults.topBar.searchMaxWidthPx),
+      widgetHeightPx: asFiniteNumber(rawTopBar.widgetHeightPx, defaults.topBar.widgetHeightPx),
+      maxWidthPx: asFiniteNumber(rawTopBar.maxWidthPx, defaults.topBar.maxWidthPx),
+      gapPx: asFiniteNumber(rawTopBar.gapPx, defaults.topBar.gapPx),
+      widgetScale: asFiniteNumber(rawTopBar.widgetScale, defaults.topBar.widgetScale),
+    }),
     theme: {
-      ...defaults.theme,
-      ...raw.theme,
+      presetId: asNonEmptyString(rawTheme.presetId, defaults.theme.presetId),
+      customSnapshot: {
+        fontFamily: asNonEmptyString(
+          rawCustomSnapshot.fontFamily,
+          defaults.theme.customSnapshot.fontFamily
+        ),
+        fontWeight: asFiniteNumber(
+          rawCustomSnapshot.fontWeight,
+          defaults.theme.customSnapshot.fontWeight
+        ),
+        colors: mergeThemeColors(rawCustomSnapshot.colors, defaults.theme.customSnapshot.colors),
+        autoTextColor: asBoolean(
+          rawCustomSnapshot.autoTextColor,
+          defaults.theme.customSnapshot.autoTextColor
+        ),
+      },
+      fontFamily: asNonEmptyString(rawTheme.fontFamily, defaults.theme.fontFamily),
+      fontWeight: asFiniteNumber(rawTheme.fontWeight, defaults.theme.fontWeight),
+      fontSizePx: asFiniteNumber(rawTheme.fontSizePx, defaults.theme.fontSizePx),
+      colors: mergeThemeColors(rawTheme.colors, defaults.theme.colors),
+      spacing: asFiniteNumber(rawTheme.spacing, defaults.theme.spacing),
+      columnWidth: asFiniteNumber(rawTheme.columnWidth, defaults.theme.columnWidth),
+      uppercaseFolderNames: asBoolean(
+        rawTheme.uppercaseFolderNames,
+        defaults.theme.uppercaseFolderNames
+      ),
+      topSpacingPx: asFiniteNumber(rawTheme.topSpacingPx, defaults.theme.topSpacingPx),
+      regionGapPx: asFiniteNumber(rawTheme.regionGapPx, defaults.theme.regionGapPx),
+      useHighlightForFolderHeaders: asBoolean(
+        rawTheme.useHighlightForFolderHeaders,
+        defaults.theme.useHighlightForFolderHeaders
+      ),
+      folderHeaderColor: asNonEmptyString(
+        rawTheme.folderHeaderColor,
+        defaults.theme.folderHeaderColor
+      ),
+      autoTextColor: asBoolean(rawTheme.autoTextColor, defaults.theme.autoTextColor),
       textOpacityPct: clampTextOpacityPct(
-        raw.theme?.textOpacityPct ?? defaults.theme.textOpacityPct
+        asFiniteNumber(rawTheme.textOpacityPct, defaults.theme.textOpacityPct)
       ),
-      linkHoverEffect: normalizeLinkHoverEffect(
-        raw.theme?.linkHoverEffect ?? defaults.theme.linkHoverEffect
-      ),
+      linkHoverEffect: normalizeLinkHoverEffect(rawTheme.linkHoverEffect),
       linkHoverGrowPct: clampLinkHoverGrowPct(
-        raw.theme?.linkHoverGrowPct ?? defaults.theme.linkHoverGrowPct
+        asFiniteNumber(rawTheme.linkHoverGrowPct, defaults.theme.linkHoverGrowPct)
       ),
       linkHoverDurationMs: clampLinkHoverDurationMs(
-        raw.theme?.linkHoverDurationMs ?? defaults.theme.linkHoverDurationMs
+        asFiniteNumber(rawTheme.linkHoverDurationMs, defaults.theme.linkHoverDurationMs)
       ),
-      useHighlightForFolderHeaders:
-        typeof raw.theme?.useHighlightForFolderHeaders === 'boolean'
-          ? raw.theme.useHighlightForFolderHeaders
-          : defaults.theme.useHighlightForFolderHeaders,
-      folderHeaderColor:
-        typeof raw.theme?.folderHeaderColor === 'string' && raw.theme.folderHeaderColor.trim()
-          ? raw.theme.folderHeaderColor
-          : defaults.theme.folderHeaderColor,
-      colors: { ...defaults.theme.colors, ...raw.theme?.colors },
-      customSnapshot: {
-        ...defaults.theme.customSnapshot,
-        ...raw.theme?.customSnapshot,
-        colors: {
-          ...defaults.theme.customSnapshot.colors,
-          ...raw.theme?.customSnapshot?.colors,
-        },
-      },
     },
     background: {
-      ...defaults.background,
-      ...raw.background,
-      imageOpacityPct: snapPercent(raw.background?.imageOpacityPct ?? defaults.background.imageOpacityPct, 0, 100),
+      imageUrl: asString(rawBackground.imageUrl, defaults.background.imageUrl),
+      imageOpacityPct: snapPercent(
+        asFiniteNumber(rawBackground.imageOpacityPct, defaults.background.imageOpacityPct),
+        0,
+        100
+      ),
+      size: backgroundSize,
+      align: asNonEmptyString(rawBackground.align, defaults.background.align),
     },
   };
 }

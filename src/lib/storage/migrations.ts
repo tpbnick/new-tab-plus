@@ -11,52 +11,67 @@ type Migration = (old: unknown) => unknown;
 
 /** v1 → v2: one bookmark folder per column becomes a grid column with a stack array. */
 function migrateLayoutV1ToV2(raw: unknown): LayoutState {
-  const layout = raw as Omit<LayoutState, 'columns'> & { columns: unknown[] };
+  const layout = raw as Omit<LayoutState, 'columns'> & { columns?: unknown };
+  if (!Array.isArray(layout.columns)) {
+    return {
+      ...(layout as LayoutState),
+      schemaVersion: 2,
+    };
+  }
   return {
-    ...layout,
+    ...(layout as LayoutState),
     schemaVersion: 2,
-    columns: (layout.columns ?? []).map((col) => {
-      if (!isLegacyBookmarkFolderColumn(col)) return col as ColumnEntry;
-      return legacyBookmarkFolderToGridColumn(col);
+    columns: layout.columns.flatMap((col): ColumnEntry[] => {
+      if (!col || typeof col !== 'object' || Array.isArray(col)) return [];
+      if (!isLegacyBookmarkFolderColumn(col)) return [col as ColumnEntry];
+      return [legacyBookmarkFolderToGridColumn(col)];
     }),
   };
 }
 
 /** v2 → v3: special sections become stack entries inside bookmark grid columns. */
 function migrateLayoutV2ToV3(raw: unknown): LayoutState {
-  const layout = raw as LayoutState;
+  const layout = raw as Omit<LayoutState, 'columns'> & { columns?: unknown };
+  if (!Array.isArray(layout.columns)) {
+    return {
+      ...(layout as LayoutState),
+      schemaVersion: 3,
+    };
+  }
   const specialSections: SpecialSectionMeta[] = [];
   const gridColumns: BookmarkGridColumnMeta[] = [];
   const otherColumns: ColumnEntry[] = [];
 
-  for (const col of layout.columns ?? []) {
-    if (col.type === 'specialSection') {
-      specialSections.push(col);
+  for (const col of layout.columns) {
+    if (!col || typeof col !== 'object' || Array.isArray(col)) continue;
+    const entry = col as ColumnEntry;
+    if (entry.type === 'specialSection') {
+      specialSections.push(entry);
       gridColumns.push({
-        id: gridColumnIdForStackItem(col.id),
+        id: gridColumnIdForStackItem(entry.id),
         type: 'bookmarkGrid',
-        order: col.order,
-        enabled: col.enabled,
-        stack: [col.id],
+        order: entry.order,
+        enabled: entry.enabled,
+        stack: [entry.id],
       });
       continue;
     }
-    if (col.type === 'bookmarkGrid') {
-      const legacy = col as BookmarkGridColumnMeta & { folderIds?: string[] };
+    if (entry.type === 'bookmarkGrid') {
+      const legacy = entry as BookmarkGridColumnMeta & { folderIds?: string[] };
       gridColumns.push({
-        id: col.id,
+        id: entry.id,
         type: 'bookmarkGrid',
-        order: col.order,
-        enabled: col.enabled,
-        stack: col.stack ?? legacy.folderIds ?? [],
+        order: entry.order,
+        enabled: entry.enabled,
+        stack: entry.stack ?? legacy.folderIds ?? [],
       });
       continue;
     }
-    otherColumns.push(col);
+    otherColumns.push(entry);
   }
 
   return {
-    ...layout,
+    ...(layout as LayoutState),
     schemaVersion: 3,
     columns: [...gridColumns, ...specialSections, ...otherColumns].sort((a, b) => a.order - b.order),
   };

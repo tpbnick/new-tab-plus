@@ -1,4 +1,4 @@
-import { getColumnStack, isSpecialSectionStackId } from '../grid/gridStack';
+import { getColumnStack, gridColumnIdForStackItem, isSpecialSectionStackId } from '../grid/gridStack';
 import type { BookmarkGridColumnMeta, ColumnEntry, LayoutState } from '../storage/schema';
 
 const PATH_PREFIX = 'path:';
@@ -9,7 +9,38 @@ export function isBookmarkPathKey(id: string): boolean {
   return id.startsWith(PATH_PREFIX);
 }
 
-/** Maps bookmark ids to a key that survives Chrome sync onto another browser. */
+export function allocateUniqueGridColumnId(
+  preferredId: string,
+  fallbackStackId: string,
+  usedIds: Set<string>
+): string {
+  if (!usedIds.has(preferredId)) {
+    usedIds.add(preferredId);
+    return preferredId;
+  }
+  const stackFallback = `grid:stack:${fallbackStackId}`;
+  if (!usedIds.has(stackFallback)) {
+    usedIds.add(stackFallback);
+    return stackFallback;
+  }
+  let suffix = 2;
+  while (usedIds.has(`grid:${fallbackStackId}~${suffix}`)) {
+    suffix++;
+  }
+  const id = `grid:${fallbackStackId}~${suffix}`;
+  usedIds.add(id);
+  return id;
+}
+
+function isBookmarkFolder(node: BookmarkNode): boolean {
+  return node.url === undefined;
+}
+
+function encodePathSegment(title: string): string {
+  return encodeURIComponent(title).replace(/~/g, '%7E');
+}
+
+/** Maps bookmark folder ids to a key that survives Chrome sync onto another browser. */
 export function buildBookmarkPathMaps(tree: BookmarkNode[]): {
   idToPath: Map<string, string>;
   pathToId: Map<string, string>;
@@ -36,10 +67,11 @@ function indexChildren(
 ): void {
   const seenTitles = new Map<string, number>();
   for (const child of children) {
+    if (!isBookmarkFolder(child)) continue;
     const title = child.title ?? '';
     const count = (seenTitles.get(title) ?? 0) + 1;
     seenTitles.set(title, count);
-    const encoded = encodeURIComponent(title);
+    const encoded = encodePathSegment(title);
     const segment = count === 1 ? encoded : `${encoded}~${count}`;
     const path = `${parentPath}/${segment}`;
     idToPath.set(child.id, path);
@@ -88,6 +120,9 @@ export function layoutFromPortableBookmarks(
 }
 
 function remapLayout(layout: LayoutState, mapId: (id: string) => string | null): LayoutState {
+  const usedColumnIds = new Set<string>(
+    layout.columns.filter((col) => col.type !== 'bookmarkGrid').map((col) => col.id)
+  );
   const columns: ColumnEntry[] = [];
   for (const col of layout.columns) {
     if (col.type !== 'bookmarkGrid') {
@@ -102,10 +137,25 @@ function remapLayout(layout: LayoutState, mapId: (id: string) => string | null):
     if (stack.length === 0) continue;
 
     const suffix = col.id.startsWith('grid:') ? col.id.slice('grid:'.length) : null;
-    const mappedSuffix = suffix ? mapId(suffix) : null;
+    const stackSuffix = suffix?.startsWith('stack:') ? suffix.slice('stack:'.length) : null;
+    const mappedSuffix = stackSuffix
+      ? mapId(stackSuffix)
+      : suffix
+        ? mapId(suffix)
+        : null;
+    const hasUnmappedPortableSuffix =
+      (stackSuffix !== null && isBookmarkPathKey(stackSuffix)) ||
+      (suffix !== null && isBookmarkPathKey(suffix));
+    const preferredId = mappedSuffix
+      ? stackSuffix
+        ? `grid:stack:${mappedSuffix}`
+        : `grid:${mappedSuffix}`
+      : hasUnmappedPortableSuffix
+        ? gridColumnIdForStackItem(stack[0])
+        : col.id;
     const remapped: BookmarkGridColumnMeta = {
       ...col,
-      id: mappedSuffix ? `grid:${mappedSuffix}` : col.id,
+      id: allocateUniqueGridColumnId(preferredId, stack[0], usedColumnIds),
       stack,
     };
     columns.push(remapped);

@@ -1,4 +1,4 @@
-import { dedupeBuiltinWidgetColumns } from '../widgets/widgetLayout';
+import { dedupeBuiltinWidgetColumns, isTopBarWidget } from '../widgets/widgetLayout';
 import {
   SCHEMA_VERSION,
   createDefaultLayoutState,
@@ -12,12 +12,29 @@ import {
   type LegacyBookmarkFolderColumn,
 } from './legacyLayoutColumn';
 
-function repairGridColumn(col: BookmarkGridColumnMeta): BookmarkGridColumnMeta {
-  if (Array.isArray(col.stack)) return col;
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
-  const legacy = col as BookmarkGridColumnMeta & { folderIds?: string[]; bookmarkId?: string };
+function repairGridColumn(col: BookmarkGridColumnMeta): BookmarkGridColumnMeta {
+  if (Array.isArray(col.stack)) {
+    const allStrings = col.stack.every((item) => typeof item === 'string');
+    if (allStrings) return col;
+    return {
+      ...col,
+      stack: col.stack.filter((item): item is string => typeof item === 'string'),
+    };
+  }
+
+  const legacy = col as BookmarkGridColumnMeta & { folderIds?: unknown[]; bookmarkId?: unknown };
   if (Array.isArray(legacy.folderIds)) {
-    return { id: col.id, type: 'bookmarkGrid', order: col.order, enabled: col.enabled, stack: legacy.folderIds };
+    return {
+      id: col.id,
+      type: 'bookmarkGrid',
+      order: col.order,
+      enabled: col.enabled,
+      stack: legacy.folderIds.filter((item): item is string => typeof item === 'string'),
+    };
   }
 
   return {
@@ -32,20 +49,26 @@ function repairGridColumn(col: BookmarkGridColumnMeta): BookmarkGridColumnMeta {
 /** Ensures required layout fields exist before migration or reconciliation. */
 export function coerceLayoutState(raw: unknown): LayoutState {
   const defaults = createDefaultLayoutState();
-  if (!raw || typeof raw !== 'object') return defaults;
+  if (!isPlainObject(raw)) return defaults;
 
   const partial = raw as Partial<LayoutState>;
   const hasColumns = Array.isArray(partial.columns);
-  const hasFolderState = partial.folderState && typeof partial.folderState === 'object';
-  const hasVersion = typeof partial.schemaVersion === 'number';
+  const allColumnsObjects =
+    hasColumns && (partial.columns as unknown[]).every((entry) => isPlainObject(entry));
+  const hasFolderState = isPlainObject(partial.folderState);
+  const hasVersion = typeof partial.schemaVersion === 'number' && Number.isFinite(partial.schemaVersion);
 
-  if (hasColumns && hasFolderState && hasVersion) {
+  if (hasColumns && allColumnsObjects && hasFolderState && hasVersion) {
     return partial as LayoutState;
   }
 
   return {
     schemaVersion: hasVersion ? partial.schemaVersion! : defaults.schemaVersion,
-    columns: hasColumns ? partial.columns! : [...defaults.columns],
+    columns: hasColumns
+      ? allColumnsObjects
+        ? partial.columns!
+        : ((partial.columns as unknown[]).filter(isPlainObject) as unknown as ColumnEntry[])
+      : [...defaults.columns],
     folderState: hasFolderState ? partial.folderState! : defaults.folderState,
   };
 }
@@ -55,31 +78,37 @@ export function coerceLayoutState(raw: unknown): LayoutState {
  * Converts legacy bookmarkFolder entries and ensures stack is always set.
  */
 export function normalizeLayoutColumns(layout: LayoutState): LayoutState {
-  let changed = false;
+  let changed = layout.schemaVersion !== SCHEMA_VERSION;
 
-  const columns = dedupeBuiltinWidgetColumns(
-    (layout.columns ?? []).map((col): ColumnEntry => {
-      if (isLegacyBookmarkFolderColumn(col)) {
-        changed = true;
-        return legacyBookmarkFolderToGridColumn(col as LegacyBookmarkFolderColumn);
-      }
-      if (col.type === 'bookmarkGrid') {
-        const repaired = repairGridColumn(col);
-        if (repaired !== col) changed = true;
-        return repaired;
-      }
-      return col;
-    })
-  );
+  const mappedColumns: ColumnEntry[] = [];
+  for (const col of layout.columns ?? []) {
+    if (!isPlainObject(col)) {
+      changed = true;
+      continue;
+    }
+    if (isLegacyBookmarkFolderColumn(col)) {
+      changed = true;
+      mappedColumns.push(legacyBookmarkFolderToGridColumn(col as LegacyBookmarkFolderColumn));
+      continue;
+    }
+    if (col.type === 'bookmarkGrid') {
+      const repaired = repairGridColumn(col);
+      if (repaired !== col) changed = true;
+      mappedColumns.push(repaired);
+      continue;
+    }
+    mappedColumns.push(col);
+  }
 
-  if (columns.length !== (layout.columns ?? []).length) changed = true;
+  const dedupedColumns = dedupeBuiltinWidgetColumns(mappedColumns);
+  if (dedupedColumns !== mappedColumns) changed = true;
 
   if (!changed) return layout;
 
   return {
     ...layout,
-    schemaVersion: Math.max(layout.schemaVersion ?? 0, SCHEMA_VERSION),
-    columns,
+    schemaVersion: SCHEMA_VERSION,
+    columns: dedupedColumns,
   };
 }
 
@@ -89,9 +118,23 @@ export function sanitizeLayoutState(raw: unknown): LayoutState {
 }
 
 export function isLayoutNormalized(layout: LayoutState): boolean {
-  return (layout.columns ?? []).every((col) => {
+  if (!isPlainObject(layout)) return false;
+  if (layout.schemaVersion !== SCHEMA_VERSION) return false;
+  if (!Array.isArray(layout.columns)) return false;
+  if (!isPlainObject(layout.folderState)) return false;
+
+  const seenBuiltinWidgets = new Set<string>();
+  return layout.columns.every((col) => {
+    if (!isPlainObject(col)) return false;
     if (isLegacyBookmarkFolderColumn(col)) return false;
-    if (col.type === 'bookmarkGrid' && !Array.isArray(col.stack)) return false;
+    if (col.type === 'bookmarkGrid') {
+      if (!Array.isArray(col.stack)) return false;
+      if (!col.stack.every((item) => typeof item === 'string')) return false;
+    }
+    if (col.type === 'widget' && isTopBarWidget(col.widgetId)) {
+      if (seenBuiltinWidgets.has(col.widgetId)) return false;
+      seenBuiltinWidgets.add(col.widgetId);
+    }
     return true;
   });
 }

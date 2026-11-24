@@ -20,6 +20,11 @@ export function reIdSourceColumnAfterNamesakeSplit(
   let nextId = gridColumnIdForStackItem(firstRemaining);
   if (takenColumnIds.has(nextId) && nextId !== sourceCol.id) {
     nextId = `grid:stack:${firstRemaining}`;
+    let suffix = 2;
+    while (takenColumnIds.has(nextId) && nextId !== sourceCol.id) {
+      nextId = `grid:stack:${firstRemaining}:${suffix}`;
+      suffix += 1;
+    }
   }
 
   takenColumnIds.delete(sourceCol.id);

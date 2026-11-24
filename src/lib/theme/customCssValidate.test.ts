@@ -19,6 +19,18 @@ describe('checkBalancedBraces', () => {
   it('rejects unclosed blocks', () => {
     expect(checkBalancedBraces('.column { color: red;')).toBeTruthy();
   });
+
+  it('does not re-enter comment mode when */ is immediately followed by *', () => {
+    expect(checkBalancedBraces('/* a */*{color:red}')).toBeNull();
+    expect(checkBalancedBraces('/* a */*{color:red')).toBeTruthy();
+  });
+
+  it('handles escaped backslashes before closing quotes in strings', () => {
+    expect(checkBalancedBraces('.a::after { content: "\\\\"; }')).toBeNull();
+    expect(checkBalancedBraces('.a::after { content: "\\\\";')).toBeTruthy();
+    expect(checkBalancedBraces('.a::after { content: "\\"}"; }')).toBeNull();
+    expect(checkBalancedBraces('.a::after { content: "\\\\\\""; }')).toBeNull();
+  });
 });
 
 describe('validateCustomCss', () => {

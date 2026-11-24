@@ -51,17 +51,28 @@ describe('topBarLayout', () => {
     expect(resolveVisibleTopBarOrder(topBar, layout)).toEqual(['clock']);
   });
 
-  it('moves items within bounds', () => {
+  it('moves items within bounds and skips items outside matchesGroup', () => {
     const order: TopBarItemId[] = ['search', 'clock', 'weather'];
     expect(moveTopBarItem(order, 'clock', -1)).toEqual(['clock', 'search', 'weather']);
     expect(moveTopBarItem(order, 'clock', 1)).toEqual(['search', 'weather', 'clock']);
     expect(moveTopBarItem(order, 'search', -1)).toEqual(order);
+
+    const isEnabled = (id: TopBarItemId) => id !== 'clock';
+    expect(moveTopBarItem(order, 'weather', -1, isEnabled)).toEqual(['weather', 'clock', 'search']);
+    expect(moveTopBarItem(order, 'search', 1, isEnabled)).toEqual(['weather', 'clock', 'search']);
+    expect(moveTopBarItem(['clock', 'search', 'weather'], 'search', -1, isEnabled)).toEqual([
+      'clock',
+      'search',
+      'weather',
+    ]);
   });
 
-  it('clamps search max width to 200–1000px', () => {
+  it('clamps search max width to 200–1000px and guards non-finite inputs', () => {
     expect(clampSearchMaxWidthPx(1500)).toBe(SEARCH_MAX_WIDTH_PX);
     expect(clampSearchMaxWidthPx(100)).toBe(200);
     expect(clampSearchMaxWidthPx(750)).toBe(750);
+    expect(clampSearchMaxWidthPx(Number.NaN)).toBe(SEARCH_MAX_WIDTH_PX);
+    expect(clampSearchMaxWidthPx(Number.POSITIVE_INFINITY)).toBe(SEARCH_MAX_WIDTH_PX);
   });
 
   it('clamps imported top-bar numerics to slider bounds', () => {

@@ -5,6 +5,7 @@ import {
   isSpecialSectionStackId,
   gridColumnIdForStackItem,
 } from '../grid/gridStack';
+import { allocateUniqueGridColumnId, collectBookmarkIds } from './bookmarkPaths';
 import type { BookmarkColumnViewModel, BookmarkFolderViewModel, BookmarkNodeViewModel, GridStackEntry } from '../types';
 
 type BookmarkNode = chrome.bookmarks.BookmarkTreeNode;
@@ -131,15 +132,23 @@ export interface ReconciliationResult {
 /** Strip bookmark grid columns and rebuild one column per top-level folder. */
 export function resetBookmarkGridLayout(layout: LayoutState, tree: BookmarkNode[]): LayoutState {
   const candidates = collectFolderCandidates(tree);
-  const sectionGridColumns = layout.columns.filter(
-    (c): c is BookmarkGridColumnMeta =>
-      c.type === 'bookmarkGrid' && getColumnStack(c).every(isSpecialSectionStackId)
-  );
+  const sectionGridColumns = layout.columns.filter((c): c is BookmarkGridColumnMeta => {
+    if (c.type !== 'bookmarkGrid') return false;
+    const stack = getColumnStack(c);
+    return stack.length > 0 && stack.every(isSpecialSectionStackId);
+  });
   const nonGridColumns = layout.columns.filter((c) => c.type !== 'bookmarkGrid');
 
+  const usedColumnIds = new Set<string>(
+    [...nonGridColumns, ...sectionGridColumns].map((c) => c.id)
+  );
   let nextOrder = [...nonGridColumns, ...sectionGridColumns].reduce((max, c) => Math.max(max, c.order), -1) + 1;
   const gridColumns: BookmarkGridColumnMeta[] = candidates.map((candidate) => ({
-    id: gridColumnIdForStackItem(candidate.bookmarkId),
+    id: allocateUniqueGridColumnId(
+      gridColumnIdForStackItem(candidate.bookmarkId),
+      candidate.bookmarkId,
+      usedColumnIds
+    ),
     type: 'bookmarkGrid',
     order: nextOrder++,
     enabled: true,
@@ -150,16 +159,6 @@ export function resetBookmarkGridLayout(layout: LayoutState, tree: BookmarkNode[
     ...layout,
     columns: [...nonGridColumns, ...sectionGridColumns, ...gridColumns].sort((a, b) => a.order - b.order),
   };
-}
-
-function collectBookmarkIds(tree: BookmarkNode[]): Set<string> {
-  const ids = new Set<string>();
-  const walk = (node: BookmarkNode): void => {
-    ids.add(node.id);
-    for (const child of node.children ?? []) walk(child);
-  };
-  for (const node of tree) walk(node);
-  return ids;
 }
 
 function pruneFolderState(
@@ -184,6 +183,7 @@ function gridColumnsUnchanged(
 ): boolean {
   if (next.length !== prev.length) return false;
   const prevById = new Map(prev.map((col) => [col.id, col]));
+  if (prevById.size !== prev.length) return false;
   return next.every((col) => {
     const existing = prevById.get(col.id);
     const nextStack = getColumnStack(col);
@@ -258,6 +258,19 @@ export function reconcileBookmarkColumns(tree: BookmarkNode[], layout: LayoutSta
       .filter((col) => getColumnStack(col).length > 0)
   );
 
+  const usedColumnIds = new Set<string>(otherColumns.map((c) => c.id));
+  gridColumns = gridColumns.map((col) => {
+    if (!usedColumnIds.has(col.id)) {
+      usedColumnIds.add(col.id);
+      return col;
+    }
+    const fallbackStackId = getColumnStack(col)[0] ?? col.id;
+    return {
+      ...col,
+      id: allocateUniqueGridColumnId(col.id, fallbackStackId, usedColumnIds),
+    };
+  });
+
   const assignedFolderIds = new Set(
     gridColumns.flatMap((col) => getColumnStack(col).filter((id) => !isSpecialSectionStackId(id)))
   );
@@ -268,7 +281,11 @@ export function reconcileBookmarkColumns(tree: BookmarkNode[], layout: LayoutSta
   for (const candidate of candidates) {
     if (assignedFolderIds.has(candidate.bookmarkId)) continue;
     newGridColumns.push({
-      id: gridColumnIdForStackItem(candidate.bookmarkId),
+      id: allocateUniqueGridColumnId(
+        gridColumnIdForStackItem(candidate.bookmarkId),
+        candidate.bookmarkId,
+        usedColumnIds
+      ),
       type: 'bookmarkGrid',
       order: nextOrder++,
       enabled: true,
@@ -289,7 +306,11 @@ export function reconcileBookmarkColumns(tree: BookmarkNode[], layout: LayoutSta
       (c): c is SpecialSectionMeta => c.type === 'specialSection' && c.id === sectionId
     );
     restoredSectionColumns.push({
-      id: gridColumnIdForStackItem(sectionId),
+      id: allocateUniqueGridColumnId(
+        gridColumnIdForStackItem(sectionId),
+        sectionId,
+        usedColumnIds
+      ),
       type: 'bookmarkGrid',
       order: sectionMeta?.order ?? nextOrder++,
       enabled: true,

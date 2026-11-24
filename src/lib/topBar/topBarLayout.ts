@@ -21,7 +21,7 @@ function clampFinite(value: number, min: number, max: number, fallback: number):
 }
 
 export function clampSearchMaxWidthPx(value: number): number {
-  return Math.min(SEARCH_MAX_WIDTH_PX, Math.max(200, Math.round(value)));
+  return Math.round(clampFinite(value, 200, SEARCH_MAX_WIDTH_PX, SEARCH_MAX_WIDTH_PX));
 }
 
 export function clampTopBarMaxWidthPx(value: number): number {
@@ -87,13 +87,19 @@ export function resolveVisibleTopBarOrder(
 export function moveTopBarItem(
   order: TopBarItemId[],
   itemId: TopBarItemId,
-  direction: -1 | 1
+  direction: -1 | 1,
+  matchesGroup?: (id: TopBarItemId) => boolean
 ): TopBarItemId[] {
   const normalized = normalizeTopBarItemOrder(order);
   const index = normalized.indexOf(itemId);
   if (index < 0) return normalized;
 
-  const target = index + direction;
+  let target = index + direction;
+  if (matchesGroup) {
+    while (target >= 0 && target < normalized.length && !matchesGroup(normalized[target])) {
+      target += direction;
+    }
+  }
   if (target < 0 || target >= normalized.length) return normalized;
 
   const next = [...normalized];

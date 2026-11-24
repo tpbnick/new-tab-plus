@@ -57,6 +57,59 @@ describe('bookmarkColumnSignature', () => {
     const linkOptions = { openLinksInSameTab: true, rememberOpenFolders: false };
     expect(bookmarkColumnSignature(vm, linkOptions)).toBe(bookmarkColumnSignature(vm, linkOptions));
   });
+
+  it('distinguishes a bookmark as a subfolder last child vs next sibling', () => {
+    const linkOptions = { openLinksInSameTab: false, rememberOpenFolders: true };
+    const bookmarkB = { id: '3', title: 'B', url: 'https://b.example', collapsed: false };
+    const bookmarkA = { id: '2', title: 'A', url: 'https://a.example', collapsed: false };
+
+    const insideSubfolder: BookmarkColumnViewModel = {
+      id: 'grid:1',
+      order: 0,
+      enabled: true,
+      stack: [
+        {
+          kind: 'folder',
+          folder: {
+            bookmarkId: '1',
+            title: 'Root',
+            parentBookmarkId: '0',
+            isSyntheticRoot: false,
+            collapsed: false,
+            children: [
+              { id: 'sub', title: 'Sub', collapsed: false, children: [bookmarkA, bookmarkB] },
+            ],
+          },
+        },
+      ],
+    };
+
+    const nextSibling: BookmarkColumnViewModel = {
+      id: 'grid:1',
+      order: 0,
+      enabled: true,
+      stack: [
+        {
+          kind: 'folder',
+          folder: {
+            bookmarkId: '1',
+            title: 'Root',
+            parentBookmarkId: '0',
+            isSyntheticRoot: false,
+            collapsed: false,
+            children: [
+              { id: 'sub', title: 'Sub', collapsed: false, children: [bookmarkA] },
+              bookmarkB,
+            ],
+          },
+        },
+      ],
+    };
+
+    expect(bookmarkColumnSignature(insideSubfolder, linkOptions)).not.toBe(
+      bookmarkColumnSignature(nextSibling, linkOptions)
+    );
+  });
 });
 
 describe('refreshBookmarksGrid', () => {
@@ -158,5 +211,64 @@ describe('refreshBookmarksGrid', () => {
     });
     expect(second.gridDomChanged).toBe(false);
     expect(grid.firstElementChild).toBe(empty);
+  });
+
+  it('reports gridDomChanged when unchanged columns are reordered', () => {
+    const grid = document.createElement('div');
+    const secondMeta: BookmarkGridColumnMeta = {
+      id: 'grid:2',
+      type: 'bookmarkGrid',
+      order: 1,
+      enabled: true,
+      stack: ['10'],
+    };
+    const secondVm: BookmarkColumnViewModel = {
+      id: 'grid:2',
+      order: 1,
+      enabled: true,
+      stack: [
+        {
+          kind: 'folder',
+          folder: {
+            bookmarkId: '10',
+            title: 'Personal',
+            parentBookmarkId: '0',
+            isSyntheticRoot: false,
+            collapsed: false,
+            children: [],
+          },
+        },
+      ],
+    };
+    const byId = new Map([
+      [columnMeta.id, columnVm],
+      [secondMeta.id, secondVm],
+    ]);
+
+    const first = refreshBookmarksGrid({
+      bookmarksGrid: grid,
+      gridColumnMeta: [columnMeta, secondMeta],
+      bookmarkColumnsById: byId,
+      linkOptions,
+      widgetCallbacks: { onSettingsSaved: vi.fn() },
+      widgetSlots: new Map(),
+      renderEmpty,
+    });
+
+    const reordered = refreshBookmarksGrid({
+      bookmarksGrid: grid,
+      gridColumnMeta: [secondMeta, columnMeta],
+      bookmarkColumnsById: byId,
+      linkOptions,
+      widgetCallbacks: { onSettingsSaved: vi.fn() },
+      widgetSlots: first.widgetSlots,
+      renderEmpty,
+    });
+
+    expect(reordered.gridDomChanged).toBe(true);
+    expect(Array.from(grid.children).map((el) => (el as HTMLElement).dataset.columnId)).toEqual([
+      'grid:2',
+      'grid:1',
+    ]);
   });
 });

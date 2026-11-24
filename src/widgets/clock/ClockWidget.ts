@@ -33,6 +33,13 @@ const settingsSchema: WidgetSettingsField[] = [
 ];
 
 const STYLE_CLASSES = ['clock-widget--minimal', 'clock-widget--bold', 'clock-widget--compact'] as const;
+const ALLOWED_STYLES: ReadonlySet<ClockSettings['style']> = new Set(['minimal', 'bold', 'compact']);
+
+function normalizeClockStyle(style: unknown): ClockSettings['style'] {
+  return typeof style === 'string' && ALLOWED_STYLES.has(style as ClockSettings['style'])
+    ? (style as ClockSettings['style'])
+    : 'minimal';
+}
 
 function formatTime(date: Date, settings: ClockSettings): string {
   let hours = date.getHours();
@@ -77,7 +84,8 @@ class ClockWidgetInstance implements WidgetInstance {
     window.clearTimeout(this.timeoutId);
     this.container.innerHTML = '';
     this.container.classList.remove(...STYLE_CLASSES);
-    this.container.classList.add('clock-widget', `clock-widget--${this.settings.style}`);
+    const style = normalizeClockStyle(this.settings.style);
+    this.container.classList.add('clock-widget', `clock-widget--${style}`);
 
     const timeEl = document.createElement('div');
     timeEl.className = 'clock-widget__time';
@@ -98,13 +106,17 @@ class ClockWidgetInstance implements WidgetInstance {
       return;
     }
 
-    const msToNextMinute = 60_000 - (Date.now() % 60_000);
-    this.timeoutId = window.setTimeout(() => {
-      if (this.destroyed) return;
-      tick();
-      if (this.destroyed) return;
-      this.intervalId = window.setInterval(tick, 60_000);
-    }, msToNextMinute);
+    const scheduleNextMinute = () => {
+      const msToNextMinute = 60_000 - (Date.now() % 60_000);
+      this.timeoutId = window.setTimeout(() => {
+        if (this.destroyed) return;
+        tick();
+        if (this.destroyed) return;
+        scheduleNextMinute();
+      }, msToNextMinute);
+    };
+
+    scheduleNextMinute();
   }
 
   refresh(): void {

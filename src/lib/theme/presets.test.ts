@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultOptionsState } from '../storage/schema';
+import { FONT_FAMILY_OPTIONS, resolveFontFamilyValue } from './fontFamilies';
 import {
   applyCustomThemeSnapshot,
   applyThemePreset,
@@ -8,6 +9,7 @@ import {
   saveCustomThemeSnapshot,
   syncAppliedPresetColors,
   THEME_PRESET_CUSTOM_ID,
+  THEME_PRESETS,
 } from './presets';
 
 describe('theme presets', () => {
@@ -78,6 +80,18 @@ describe('theme presets', () => {
     applyCustomThemeSnapshot(options.theme);
     expect(options.theme.colors.text).toBe('#c0ffee');
     expect(detectThemePresetId(options.theme)).toBe(THEME_PRESET_CUSTOM_ID);
+  });
+
+  it('uses fontFamily values that match FONT_FAMILY_OPTIONS (including Hacker -> JetBrains Mono)', () => {
+    const allowedValues = new Set(FONT_FAMILY_OPTIONS.map((opt) => opt.value));
+    for (const preset of THEME_PRESETS) {
+      expect(allowedValues.has(preset.fontFamily)).toBe(true);
+    }
+
+    const hacker = getThemePreset('hacker')!;
+    expect(resolveFontFamilyValue(hacker.fontFamily)).toBe(
+      '"JetBrains Mono", Consolas, monospace'
+    );
   });
 });
 

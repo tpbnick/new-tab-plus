@@ -8,12 +8,14 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const DEFAULT_TTL_MS = 60_000;
+let invalidationVersion = 0;
 
 function cacheKey(meta: SpecialSectionMeta): string {
   return `${meta.id}:${meta.kind}:${meta.itemCount}`;
 }
 
 export function invalidateSpecialSectionCache(sectionIdOrKind?: string): void {
+  invalidationVersion += 1;
   if (!sectionIdOrKind) {
     cache.clear();
     return;
@@ -39,10 +41,12 @@ export async function loadSpecialSectionCached(
     if (hit && hit.expiresAt > now) return hit.vm;
   }
 
+  const versionBeforeLoad = invalidationVersion;
+
   try {
     const vm = await loadSpecialSection(meta);
-    if (!bypassCache) {
-      cache.set(key, { vm, expiresAt: now + ttlMs });
+    if (!bypassCache && invalidationVersion === versionBeforeLoad) {
+      cache.set(key, { vm, expiresAt: Date.now() + ttlMs });
     }
     return vm;
   } catch {
